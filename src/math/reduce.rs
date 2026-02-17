@@ -10,7 +10,8 @@ pub const MONT: i16 = -1044;
 
 /// Montgomery reduction: computes `a * R^{-1} mod q` where R = 2^{16}.
 ///
-/// Input: `a in {-q*2^{15}, ..., q*2^{15} - 1}`. Output: `r in {-q+1, ..., q-1}` with `r \equiv a*R^{-1} (mod q)`.
+/// Input: `a in {-q*2^{15}, ..., q*2^{15} - 1}`. Output: `r in {-q+1, ...,
+/// q-1}` with `r \equiv a*R^{-1} (mod q)`.
 #[inline]
 pub fn montgomery_reduce(a: i32) -> i16 {
     let t = (a as i16).wrapping_mul(QINV);
@@ -19,7 +20,8 @@ pub fn montgomery_reduce(a: i32) -> i16 {
 
 /// Barrett reduction: centered reduction modulo q.
 ///
-/// Input `a` with `|a| < 2q` (typical after butterfly). Output: `r in {-floor(q/2), ..., floor(q/2)}` with `r \equiv a (mod q)`.
+/// Input `a` with `|a| < 2q` (typical after butterfly). Output: `r in
+/// {-floor(q/2), ..., floor(q/2)}` with `r \equiv a (mod q)`.
 #[inline]
 pub fn barrett_reduce(a: i16) -> i16 {
     const V: i32 = ((1i32 << 26) + (Q as i32) / 2) / (Q as i32); // 20159

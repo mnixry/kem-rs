@@ -5,6 +5,6 @@ fn_params_layout             = "Compressed"
 group_imports                = "StdExternalCrate"
 hex_literal_case             = "Upper"
 imports_granularity          = "Crate"
-tab_spaces                   = 2
+tab_spaces                   = 4
 unstable_features            = true
 wrap_comments                = true

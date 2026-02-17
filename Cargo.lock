@@ -411,6 +411,8 @@ dependencies = [
  "getrandom",
  "hex",
  "rand_core",
+ "serde",
+ "serde_json",
  "sha2",
  "sha3",
  "zeroize",

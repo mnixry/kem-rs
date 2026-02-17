@@ -1,15 +1,21 @@
 //! IND-CPA public-key encryption -- the inner PKE scheme used by ML-KEM.
 
-use crate::hash;
-use crate::math::{poly::Poly, polyvec::PolyVec, sample};
-use crate::params::{MlKemParams, SYMBYTES};
+use crate::{
+    hash,
+    math::{poly::Poly, polyvec::PolyVec, sample},
+    params::{MlKemParams, SYMBYTES},
+};
 
 /// Sample the KxK public matrix `A` from seed `rho` using SHAKE-128.
 /// If `transposed`, produces `A^T` for encryption.
 fn gen_matrix<const K: usize>(a: &mut [PolyVec<K>], seed: &[u8; SYMBYTES], transposed: bool) {
     for (i, a_row) in a.iter_mut().enumerate() {
         for (j, poly) in a_row.polys.iter_mut().enumerate() {
-            let (x, y) = if transposed { (i as u8, j as u8) } else { (j as u8, i as u8) };
+            let (x, y) = if transposed {
+                (i as u8, j as u8)
+            } else {
+                (j as u8, i as u8)
+            };
             let mut xof = hash::xof_absorb(seed, x, y);
             sample::rej_uniform(&mut poly.coeffs, &mut xof);
         }
@@ -19,9 +25,7 @@ fn gen_matrix<const K: usize>(a: &mut [PolyVec<K>], seed: &[u8; SYMBYTES], trans
 // -- IND-CPA key generation --------------------------------------------------
 
 pub(crate) fn indcpa_keypair_derand<P: MlKemParams>(
-    pk_bytes: &mut [u8],
-    sk_bytes: &mut [u8],
-    coins: &[u8; SYMBYTES],
+    pk_bytes: &mut [u8], sk_bytes: &mut [u8], coins: &[u8; SYMBYTES],
 ) {
     match P::K {
         2 => indcpa_keypair_inner::<P, 2>(pk_bytes, sk_bytes, coins),
@@ -32,9 +36,7 @@ pub(crate) fn indcpa_keypair_derand<P: MlKemParams>(
 }
 
 fn indcpa_keypair_inner<P: MlKemParams, const K: usize>(
-    pk_bytes: &mut [u8],
-    sk_bytes: &mut [u8],
-    coins: &[u8; SYMBYTES],
+    pk_bytes: &mut [u8], sk_bytes: &mut [u8], coins: &[u8; SYMBYTES],
 ) {
     // G(d || k) -> (rho || sigma)
     let mut g_input = [0u8; SYMBYTES + 1];
@@ -81,10 +83,7 @@ fn indcpa_keypair_inner<P: MlKemParams, const K: usize>(
 // -- IND-CPA encryption ------------------------------------------------------
 
 pub(crate) fn indcpa_enc<P: MlKemParams>(
-    ct_bytes: &mut [u8],
-    m: &[u8; SYMBYTES],
-    pk_bytes: &[u8],
-    coins: &[u8; SYMBYTES],
+    ct_bytes: &mut [u8], m: &[u8; SYMBYTES], pk_bytes: &[u8], coins: &[u8; SYMBYTES],
 ) {
     match P::K {
         2 => indcpa_enc_inner::<P, 2>(ct_bytes, m, pk_bytes, coins),
@@ -95,10 +94,7 @@ pub(crate) fn indcpa_enc<P: MlKemParams>(
 }
 
 fn indcpa_enc_inner<P: MlKemParams, const K: usize>(
-    ct_bytes: &mut [u8],
-    m: &[u8; SYMBYTES],
-    pk_bytes: &[u8],
-    coins: &[u8; SYMBYTES],
+    ct_bytes: &mut [u8], m: &[u8; SYMBYTES], pk_bytes: &[u8], coins: &[u8; SYMBYTES],
 ) {
     let pkpv = PolyVec::<K>::frombytes(&pk_bytes[..P::POLYVEC_BYTES]);
     let seed: [u8; SYMBYTES] = pk_bytes[P::POLYVEC_BYTES..P::INDCPA_PK_BYTES]
@@ -153,11 +149,7 @@ fn indcpa_enc_inner<P: MlKemParams, const K: usize>(
 
 // -- IND-CPA decryption ------------------------------------------------------
 
-pub(crate) fn indcpa_dec<P: MlKemParams>(
-    m: &mut [u8; SYMBYTES],
-    ct_bytes: &[u8],
-    sk_bytes: &[u8],
-) {
+pub(crate) fn indcpa_dec<P: MlKemParams>(m: &mut [u8; SYMBYTES], ct_bytes: &[u8], sk_bytes: &[u8]) {
     match P::K {
         2 => indcpa_dec_inner::<P, 2>(m, ct_bytes, sk_bytes),
         3 => indcpa_dec_inner::<P, 3>(m, ct_bytes, sk_bytes),
@@ -167,9 +159,7 @@ pub(crate) fn indcpa_dec<P: MlKemParams>(
 }
 
 fn indcpa_dec_inner<P: MlKemParams, const K: usize>(
-    m: &mut [u8; SYMBYTES],
-    ct_bytes: &[u8],
-    sk_bytes: &[u8],
+    m: &mut [u8; SYMBYTES], ct_bytes: &[u8], sk_bytes: &[u8],
 ) {
     let b = PolyVec::<K>::decompress(&ct_bytes[..P::POLYVEC_COMPRESSED_BYTES], P::D_U);
     let v = Poly::decompress(
@@ -196,7 +186,8 @@ mod tests {
     use super::*;
     use crate::params::{MlKem512, MlKem768, MlKem1024};
 
-    /// Manual pipeline: keygen + encrypt zero message + decrypt, checking noise.
+    /// Manual pipeline: keygen + encrypt zero message + decrypt, checking
+    /// noise.
     fn manual_pipeline<const K: usize>(eta1: usize, eta2: usize) {
         let coins = [42u8; SYMBYTES];
 
@@ -212,9 +203,15 @@ mod tests {
 
         let mut nonce = 0u8;
         let mut s = PolyVec::<K>::zero();
-        for p in &mut s.polys { *p = Poly::getnoise_eta(eta1, &noise_seed, nonce); nonce += 1; }
+        for p in &mut s.polys {
+            *p = Poly::getnoise_eta(eta1, &noise_seed, nonce);
+            nonce += 1;
+        }
         let mut e = PolyVec::<K>::zero();
-        for p in &mut e.polys { *p = Poly::getnoise_eta(eta1, &noise_seed, nonce); nonce += 1; }
+        for p in &mut e.polys {
+            *p = Poly::getnoise_eta(eta1, &noise_seed, nonce);
+            nonce += 1;
+        }
 
         s.ntt();
         s.reduce();
@@ -238,9 +235,15 @@ mod tests {
 
         let mut enc_nonce = 0u8;
         let mut r = PolyVec::<K>::zero();
-        for p in &mut r.polys { *p = Poly::getnoise_eta(eta1, &enc_coins, enc_nonce); enc_nonce += 1; }
+        for p in &mut r.polys {
+            *p = Poly::getnoise_eta(eta1, &enc_coins, enc_nonce);
+            enc_nonce += 1;
+        }
         let mut e1 = PolyVec::<K>::zero();
-        for p in &mut e1.polys { *p = Poly::getnoise_eta(eta2, &enc_coins, enc_nonce); enc_nonce += 1; }
+        for p in &mut e1.polys {
+            *p = Poly::getnoise_eta(eta2, &enc_coins, enc_nonce);
+            enc_nonce += 1;
+        }
         let e2 = Poly::getnoise_eta(eta2, &enc_coins, enc_nonce);
 
         r.ntt();
@@ -271,20 +274,47 @@ mod tests {
         result.reduce();
 
         let q = crate::params::Q as i32;
-        let max_coeff = result.coeffs.iter()
-            .map(|&c| { let cv = c as i32; if cv > q/2 { cv - q } else if cv < -q/2 { cv + q } else { cv } })
-            .map(|c| c.abs()).max().unwrap();
-        assert!(max_coeff < q / 4, "noise too large: {max_coeff} >= {}", q / 4);
+        let max_coeff = result
+            .coeffs
+            .iter()
+            .map(|&c| {
+                let cv = c as i32;
+                if cv > q / 2 {
+                    cv - q
+                } else if cv < -q / 2 {
+                    cv + q
+                } else {
+                    cv
+                }
+            })
+            .map(|c| c.abs())
+            .max()
+            .unwrap();
+        assert!(
+            max_coeff < q / 4,
+            "noise too large: {max_coeff} >= {}",
+            q / 4
+        );
 
         let recovered = result.tomsg();
         assert_eq!(recovered, zero_msg, "zero-message recovery failed");
     }
 
-    #[test] fn manual_pipeline_k2() { manual_pipeline::<2>(3, 2); }
-    #[test] fn manual_pipeline_k3() { manual_pipeline::<3>(2, 2); }
-    #[test] fn manual_pipeline_k4() { manual_pipeline::<4>(2, 2); }
+    #[test]
+    fn manual_pipeline_k2() {
+        manual_pipeline::<2>(3, 2);
+    }
+    #[test]
+    fn manual_pipeline_k3() {
+        manual_pipeline::<3>(2, 2);
+    }
+    #[test]
+    fn manual_pipeline_k4() {
+        manual_pipeline::<4>(2, 2);
+    }
 
-    /// Same as manual_pipeline but with serialization/deserialization roundtrip.
+    /// Same as manual_pipeline but with serialization/deserialization
+    /// roundtrip.
     fn serialized_manual_pipeline<const K: usize>(eta1: usize, eta2: usize) {
         let coins = [42u8; SYMBYTES];
         let polyvec_bytes = K * crate::params::POLYBYTES;
@@ -301,9 +331,15 @@ mod tests {
 
         let mut nonce = 0u8;
         let mut s = PolyVec::<K>::zero();
-        for p in &mut s.polys { *p = Poly::getnoise_eta(eta1, &noise_seed, nonce); nonce += 1; }
+        for p in &mut s.polys {
+            *p = Poly::getnoise_eta(eta1, &noise_seed, nonce);
+            nonce += 1;
+        }
         let mut e = PolyVec::<K>::zero();
-        for p in &mut e.polys { *p = Poly::getnoise_eta(eta1, &noise_seed, nonce); nonce += 1; }
+        for p in &mut e.polys {
+            *p = Poly::getnoise_eta(eta1, &noise_seed, nonce);
+            nonce += 1;
+        }
         s.ntt();
         s.reduce();
         e.ntt();
@@ -345,9 +381,15 @@ mod tests {
 
         let mut enc_nonce = 0u8;
         let mut r = PolyVec::<K>::zero();
-        for p in &mut r.polys { *p = Poly::getnoise_eta(eta1, &enc_coins, enc_nonce); enc_nonce += 1; }
+        for p in &mut r.polys {
+            *p = Poly::getnoise_eta(eta1, &enc_coins, enc_nonce);
+            enc_nonce += 1;
+        }
         let mut e1 = PolyVec::<K>::zero();
-        for p in &mut e1.polys { *p = Poly::getnoise_eta(eta2, &enc_coins, enc_nonce); enc_nonce += 1; }
+        for p in &mut e1.polys {
+            *p = Poly::getnoise_eta(eta2, &enc_coins, enc_nonce);
+            enc_nonce += 1;
+        }
         let e2_poly = Poly::getnoise_eta(eta2, &enc_coins, enc_nonce);
 
         r.ntt();
@@ -408,11 +450,20 @@ mod tests {
         let mut result = &v - &mp;
         result.reduce();
         let recovered = result.tomsg();
-        assert_eq!(recovered, zero_msg, "serialized pipeline: zero-message recovery failed");
+        assert_eq!(
+            recovered, zero_msg,
+            "serialized pipeline: zero-message recovery failed"
+        );
     }
 
-    #[test] fn serialized_manual_k2() { serialized_manual_pipeline::<2>(3, 2); }
-    #[test] fn serialized_manual_k3() { serialized_manual_pipeline::<3>(2, 2); }
+    #[test]
+    fn serialized_manual_k2() {
+        serialized_manual_pipeline::<2>(3, 2);
+    }
+    #[test]
+    fn serialized_manual_k3() {
+        serialized_manual_pipeline::<3>(2, 2);
+    }
 
     fn indcpa_roundtrip<P: MlKemParams>() {
         let seed = [42u8; SYMBYTES];
@@ -430,7 +481,16 @@ mod tests {
         assert_eq!(msg, recovered, "IND-CPA roundtrip failed");
     }
 
-    #[test] fn indcpa_roundtrip_512()  { indcpa_roundtrip::<MlKem512>(); }
-    #[test] fn indcpa_roundtrip_768()  { indcpa_roundtrip::<MlKem768>(); }
-    #[test] fn indcpa_roundtrip_1024() { indcpa_roundtrip::<MlKem1024>(); }
+    #[test]
+    fn indcpa_roundtrip_512() {
+        indcpa_roundtrip::<MlKem512>();
+    }
+    #[test]
+    fn indcpa_roundtrip_768() {
+        indcpa_roundtrip::<MlKem768>();
+    }
+    #[test]
+    fn indcpa_roundtrip_1024() {
+        indcpa_roundtrip::<MlKem1024>();
+    }
 }

@@ -1,7 +1,9 @@
-//! Deterministic sampling: CBD noise ([`cbd2`], [`cbd3`]) and rejection-uniform ([`rej_uniform`]).
+//! Deterministic sampling: CBD noise ([`cbd2`], [`cbd3`]) and rejection-uniform
+//! ([`rej_uniform`]).
+
+use sha3::digest::XofReader;
 
 use crate::params::{N, Q};
-use sha3::digest::XofReader;
 
 /// SHAKE-128 output rate in bytes (one Keccak-f[1600] squeeze).
 pub const SHAKE128_RATE: usize = 168;
@@ -34,7 +36,8 @@ pub fn cbd3(r: &mut [i16; N], buf: &[u8]) {
     }
 }
 
-/// Rejection-sample N uniformly random coefficients in [0, q) from SHAKE-128 XOF. Returns N.
+/// Rejection-sample N uniformly random coefficients in [0, q) from SHAKE-128
+/// XOF. Returns N.
 pub fn rej_uniform(r: &mut [i16; N], xof: &mut impl XofReader) -> usize {
     let mut ctr = 0;
     let mut buf = [0u8; SHAKE128_RATE];
@@ -69,7 +72,10 @@ mod tests {
         let mut r = [0i16; N];
         cbd2(&mut r, &buf);
         for &c in &r {
-            assert!((-2..=2).contains(&c), "coefficient {c} out of range for eta=2");
+            assert!(
+                (-2..=2).contains(&c),
+                "coefficient {c} out of range for eta=2"
+            );
         }
     }
 
@@ -79,7 +85,10 @@ mod tests {
         let mut r = [0i16; N];
         cbd3(&mut r, &buf);
         for &c in &r {
-            assert!((-3..=3).contains(&c), "coefficient {c} out of range for eta=3");
+            assert!(
+                (-3..=3).contains(&c),
+                "coefficient {c} out of range for eta=3"
+            );
         }
     }
 

@@ -1,7 +1,9 @@
-//! Key, ciphertext, and shared-secret newtypes with RAII zeroization. Secret types zeroize on drop.
+//! Key, ciphertext, and shared-secret newtypes with RAII zeroization. Secret
+//! types zeroize on drop.
+
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::params::{MlKemParams, SSBYTES};
-use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// ML-KEM public (encapsulation) key.
 pub struct PublicKey<P: MlKemParams> {

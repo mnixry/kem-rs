@@ -1,6 +1,8 @@
-//! Constant-time comparison and conditional-move (verify/cmov). No secret-dependent branching.
+//! Constant-time comparison and conditional-move (verify/cmov). No
+//! secret-dependent branching.
 
-/// Constant-time byte-slice comparison. Returns 0 if a == b, 1 otherwise. Same length required.
+/// Constant-time byte-slice comparison. Returns 0 if a == b, 1 otherwise. Same
+/// length required.
 #[inline]
 pub fn ct_verify(a: &[u8], b: &[u8]) -> u8 {
     assert_eq!(a.len(), b.len(), "ct_verify: length mismatch");
@@ -15,7 +17,8 @@ pub fn ct_verify(a: &[u8], b: &[u8]) -> u8 {
     (diff.wrapping_neg() >> 63) as u8
 }
 
-/// Constant-time conditional copy. If condition==1 overwrites dst with src; if 0, dst unchanged. Panics if condition not 0/1 or lengths differ.
+/// Constant-time conditional copy. If condition==1 overwrites dst with src; if
+/// 0, dst unchanged. Panics if condition not 0/1 or lengths differ.
 #[inline]
 pub fn ct_cmov(dst: &mut [u8], src: &[u8], condition: u8) {
     assert_eq!(dst.len(), src.len(), "ct_cmov: length mismatch");

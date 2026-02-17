@@ -3,10 +3,13 @@
 //! `Poly` wraps `[i16; N]` (N=256) and provides arithmetic, NTT transforms,
 //! compression, serialisation, and noise sampling.
 
-use crate::hash;
-use crate::params::{N, SYMBYTES};
-use super::{ntt, pack, sample};
 use core::ops;
+
+use super::{ntt, pack, sample};
+use crate::{
+    hash,
+    params::{N, SYMBYTES},
+};
 
 /// Polynomial in `R_q = Z_q[X]/(X^n + 1)`, `N = 256` coefficients.
 #[derive(Clone, Copy)]
@@ -43,7 +46,8 @@ impl Poly {
         crate::simd::poly_tomont(&mut self.coeffs);
     }
 
-    /// Pointwise Montgomery multiply: `self = a * b` (NTT domain, 128 basemul pairs).
+    /// Pointwise Montgomery multiply: `self = a * b` (NTT domain, 128 basemul
+    /// pairs).
     pub fn basemul_montgomery(&mut self, a: &Poly, b: &Poly) {
         for i in 0..N / 4 {
             let zi = 64 + i;
@@ -132,17 +136,23 @@ impl Poly {
 
 impl From<[i16; N]> for Poly {
     #[inline]
-    fn from(coeffs: [i16; N]) -> Self { Poly { coeffs } }
+    fn from(coeffs: [i16; N]) -> Self {
+        Poly { coeffs }
+    }
 }
 
 impl From<Poly> for [i16; N] {
     #[inline]
-    fn from(p: Poly) -> Self { p.coeffs }
+    fn from(p: Poly) -> Self {
+        p.coeffs
+    }
 }
 
 impl Default for Poly {
     #[inline]
-    fn default() -> Self { Poly::zero() }
+    fn default() -> Self {
+        Poly::zero()
+    }
 }
 
 impl core::fmt::Debug for Poly {
@@ -251,13 +261,17 @@ mod tests {
     fn getnoise_eta2_bounded() {
         let seed = [0u8; SYMBYTES];
         let p = Poly::getnoise_eta(2, &seed, 0);
-        for &c in &p.coeffs { assert!((-2..=2).contains(&c)); }
+        for &c in &p.coeffs {
+            assert!((-2..=2).contains(&c));
+        }
     }
 
     #[test]
     fn getnoise_eta3_bounded() {
         let seed = [1u8; SYMBYTES];
         let p = Poly::getnoise_eta(3, &seed, 0);
-        for &c in &p.coeffs { assert!((-3..=3).contains(&c)); }
+        for &c in &p.coeffs {
+            assert!((-3..=3).contains(&c));
+        }
     }
 }

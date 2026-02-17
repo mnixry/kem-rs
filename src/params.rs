@@ -1,4 +1,5 @@
-//! ML-KEM parameter definitions. MlKemParams trait and marker types MlKem512, MlKem768, MlKem1024.
+//! ML-KEM parameter definitions. MlKemParams trait and marker types MlKem512,
+//! MlKem768, MlKem1024.
 
 use zeroize::Zeroize;
 
@@ -19,8 +20,7 @@ pub const POLYBYTES: usize = 384;
 
 /// Fixed-size byte buffer usable as an ML-KEM key/ciphertext backing store.
 pub trait ByteArray:
-    AsRef<[u8]> + AsMut<[u8]> + Clone + core::fmt::Debug + Zeroize + Send + Sync + 'static
-{
+    AsRef<[u8]> + AsMut<[u8]> + Clone + core::fmt::Debug + Zeroize + Send + Sync + 'static {
     /// Array length in bytes.
     const LEN: usize;
 
@@ -167,8 +167,7 @@ const _: () = {
             assert!(<$t>::INDCPA_PK_BYTES == <$t>::POLYVEC_BYTES + SYMBYTES);
             assert!(<$t>::INDCPA_SK_BYTES == <$t>::POLYVEC_BYTES);
             assert!(
-                <$t>::INDCPA_BYTES
-                    == <$t>::POLYVEC_COMPRESSED_BYTES + <$t>::POLY_COMPRESSED_BYTES
+                <$t>::INDCPA_BYTES == <$t>::POLYVEC_COMPRESSED_BYTES + <$t>::POLY_COMPRESSED_BYTES
             );
             assert!(<$t>::PK_BYTES == <$t>::INDCPA_PK_BYTES);
             assert!(<$t>::SK_BYTES == <$t>::INDCPA_SK_BYTES + <$t>::PK_BYTES + 2 * SYMBYTES);

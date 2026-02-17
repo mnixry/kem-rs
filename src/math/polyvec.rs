@@ -3,9 +3,10 @@
 //! `PolyVec<K>` holds `K` polynomials and provides NTT, inner product,
 //! compression, and byte serialisation parameterised by const-generic rank `K`.
 
-use crate::params::{N, POLYBYTES};
-use super::{pack, poly::Poly};
 use core::ops;
+
+use super::{pack, poly::Poly};
+use crate::params::{N, POLYBYTES};
 
 /// A vector of `K` polynomials (K = 2, 3, or 4 in ML-KEM).
 #[derive(Clone)]
@@ -16,22 +17,30 @@ pub struct PolyVec<const K: usize> {
 impl<const K: usize> PolyVec<K> {
     #[inline]
     pub fn zero() -> Self {
-        PolyVec { polys: [Poly::zero(); K] }
+        PolyVec {
+            polys: [Poly::zero(); K],
+        }
     }
 
     /// Forward NTT on every polynomial.
     pub fn ntt(&mut self) {
-        for p in &mut self.polys { p.ntt(); }
+        for p in &mut self.polys {
+            p.ntt();
+        }
     }
 
     /// Inverse NTT on every polynomial (result in Montgomery domain).
     pub fn invntt_tomont(&mut self) {
-        for p in &mut self.polys { p.invntt_tomont(); }
+        for p in &mut self.polys {
+            p.invntt_tomont();
+        }
     }
 
     /// Barrett-reduce all coefficients in every polynomial.
     pub fn reduce(&mut self) {
-        for p in &mut self.polys { p.reduce(); }
+        for p in &mut self.polys {
+            p.reduce();
+        }
     }
 
     /// Inner product with accumulation: `r = sum_i(a[i] * b[i])` (NTT domain).
@@ -91,7 +100,9 @@ impl<const K: usize> PolyVec<K> {
 }
 
 impl<const K: usize> Default for PolyVec<K> {
-    fn default() -> Self { Self::zero() }
+    fn default() -> Self {
+        Self::zero()
+    }
 }
 
 impl<'b, const K: usize> ops::Add<&'b PolyVec<K>> for &PolyVec<K> {

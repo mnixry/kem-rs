@@ -6,7 +6,8 @@
 //! # Design principles
 //!
 //! - **No `unsafe`** — enforced by `#![deny(unsafe_code)]`.
-//! - **Nightly `portable_simd`** for vectorized arithmetic with scalar fallback.
+//! - **Nightly `portable_simd`** for vectorized arithmetic with scalar
+//!   fallback.
 //! - **RAII zeroization** of secret material via the `zeroize` crate.
 //! - **Constant-time** operations for secret-dependent comparisons and moves.
 

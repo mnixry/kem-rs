@@ -1,6 +1,7 @@
-//! Byte-level packing, unpacking, compression, and decompression on raw coefficient slices.
+//! Byte-level packing, unpacking, compression, and decompression on raw
+//! coefficient slices.
 
-use crate::params::{N, Q, POLYBYTES, SYMBYTES};
+use crate::params::{N, POLYBYTES, Q, SYMBYTES};
 
 /// Conditionally add q to make a coefficient non-negative.
 #[inline]
@@ -25,7 +26,8 @@ fn decompress(y: u16, d: u32) -> u16 {
     (((y as u32) * (Q as u32) + (1u32 << (d - 1))) >> d) as u16
 }
 
-/// Serialize coefficients to bytes (12-bit encoding, 2 coefficients -> 3 bytes).
+/// Serialize coefficients to bytes (12-bit encoding, 2 coefficients -> 3
+/// bytes).
 pub fn poly_tobytes(r: &mut [u8], a: &[i16; N]) {
     debug_assert!(r.len() >= POLYBYTES);
     for i in 0..N / 2 {
@@ -46,7 +48,8 @@ pub fn poly_frombytes(r: &mut [i16; N], a: &[u8]) {
     }
 }
 
-/// Decode a 32-byte message into polynomial coefficients. Each bit maps to `0` or `ceil(q/2) = 1665`.
+/// Decode a 32-byte message into polynomial coefficients. Each bit maps to `0`
+/// or `ceil(q/2) = 1665`.
 pub fn poly_frommsg(r: &mut [i16; N], msg: &[u8; SYMBYTES]) {
     for i in 0..N / 8 {
         for j in 0..8u32 {
@@ -71,7 +74,8 @@ pub fn poly_tomsg(msg: &mut [u8; SYMBYTES], a: &[i16; N]) {
     }
 }
 
-/// Compress with d = 4 (ML-KEM-512/768): 2 coefficients -> 1 byte, 128 bytes total.
+/// Compress with d = 4 (ML-KEM-512/768): 2 coefficients -> 1 byte, 128 bytes
+/// total.
 pub fn poly_compress_d4(r: &mut [u8], a: &[i16; N]) {
     debug_assert!(r.len() >= 128);
     for i in 0..N / 2 {
@@ -90,7 +94,8 @@ pub fn poly_decompress_d4(r: &mut [i16; N], a: &[u8]) {
     }
 }
 
-/// Compress with d = 5 (ML-KEM-1024): 8 coefficients -> 5 bytes, 160 bytes total.
+/// Compress with d = 5 (ML-KEM-1024): 8 coefficients -> 5 bytes, 160 bytes
+/// total.
 pub fn poly_compress_d5(r: &mut [u8], a: &[i16; N]) {
     debug_assert!(r.len() >= 160);
     for i in 0..N / 8 {
@@ -119,7 +124,8 @@ pub fn poly_decompress_d5(r: &mut [i16; N], a: &[u8]) {
     }
 }
 
-/// Compress one polynomial with d = 10 (ML-KEM-512/768): 4 coefficients -> 5 bytes, 320 bytes.
+/// Compress one polynomial with d = 10 (ML-KEM-512/768): 4 coefficients -> 5
+/// bytes, 320 bytes.
 pub fn poly_compress_d10(r: &mut [u8], a: &[i16; N]) {
     debug_assert!(r.len() >= 320);
     for i in 0..N / 4 {
@@ -138,15 +144,14 @@ pub fn poly_decompress_d10(r: &mut [i16; N], a: &[u8]) {
     for i in 0..N / 4 {
         let b = &a[5 * i..];
         r[4 * i] = decompress((b[0] as u16) | (((b[1] as u16) & 0x03) << 8), 10) as i16;
-        r[4 * i + 1] =
-            decompress(((b[1] as u16) >> 2) | (((b[2] as u16) & 0x0F) << 6), 10) as i16;
-        r[4 * i + 2] =
-            decompress(((b[2] as u16) >> 4) | (((b[3] as u16) & 0x3F) << 4), 10) as i16;
+        r[4 * i + 1] = decompress(((b[1] as u16) >> 2) | (((b[2] as u16) & 0x0F) << 6), 10) as i16;
+        r[4 * i + 2] = decompress(((b[2] as u16) >> 4) | (((b[3] as u16) & 0x3F) << 4), 10) as i16;
         r[4 * i + 3] = decompress(((b[3] as u16) >> 6) | ((b[4] as u16) << 2), 10) as i16;
     }
 }
 
-/// Compress one polynomial with d = 11 (ML-KEM-1024): 8 coefficients -> 11 bytes, 352 bytes.
+/// Compress one polynomial with d = 11 (ML-KEM-1024): 8 coefficients -> 11
+/// bytes, 352 bytes.
 pub fn poly_compress_d11(r: &mut [u8], a: &[i16; N]) {
     debug_assert!(r.len() >= 352);
     for i in 0..N / 8 {
@@ -171,24 +176,19 @@ pub fn poly_decompress_d11(r: &mut [i16; N], a: &[u8]) {
     for i in 0..N / 8 {
         let b = &a[11 * i..];
         r[8 * i] = decompress((b[0] as u16) | (((b[1] as u16) & 0x07) << 8), 11) as i16;
-        r[8 * i + 1] =
-            decompress(((b[1] as u16) >> 3) | (((b[2] as u16) & 0x3F) << 5), 11) as i16;
+        r[8 * i + 1] = decompress(((b[1] as u16) >> 3) | (((b[2] as u16) & 0x3F) << 5), 11) as i16;
         r[8 * i + 2] = decompress(
             ((b[2] as u16) >> 6) | ((b[3] as u16) << 2) | (((b[4] as u16) & 0x01) << 10),
             11,
         ) as i16;
-        r[8 * i + 3] =
-            decompress(((b[4] as u16) >> 1) | (((b[5] as u16) & 0x0F) << 7), 11) as i16;
-        r[8 * i + 4] =
-            decompress(((b[5] as u16) >> 4) | (((b[6] as u16) & 0x7F) << 4), 11) as i16;
+        r[8 * i + 3] = decompress(((b[4] as u16) >> 1) | (((b[5] as u16) & 0x0F) << 7), 11) as i16;
+        r[8 * i + 4] = decompress(((b[5] as u16) >> 4) | (((b[6] as u16) & 0x7F) << 4), 11) as i16;
         r[8 * i + 5] = decompress(
             ((b[6] as u16) >> 7) | ((b[7] as u16) << 1) | (((b[8] as u16) & 0x03) << 9),
             11,
         ) as i16;
-        r[8 * i + 6] =
-            decompress(((b[8] as u16) >> 2) | (((b[9] as u16) & 0x1F) << 6), 11) as i16;
-        r[8 * i + 7] =
-            decompress(((b[9] as u16) >> 5) | ((b[10] as u16) << 3), 11) as i16;
+        r[8 * i + 6] = decompress(((b[8] as u16) >> 2) | (((b[9] as u16) & 0x1F) << 6), 11) as i16;
+        r[8 * i + 7] = decompress(((b[9] as u16) >> 5) | ((b[10] as u16) << 3), 11) as i16;
     }
 }
 
@@ -239,7 +239,10 @@ mod tests {
             let recovered = bi as i32;
             let diff = (original - recovered + Q as i32) % Q as i32;
             let diff = diff.min(Q as i32 - diff);
-            assert!(diff <= (Q as i32) / (1 << 4), "excessive error at index {i}");
+            assert!(
+                diff <= (Q as i32) / (1 << 4),
+                "excessive error at index {i}"
+            );
         }
     }
 
@@ -260,7 +263,10 @@ mod tests {
             let recovered = bi as i32;
             let diff = (original - recovered + Q as i32) % Q as i32;
             let diff = diff.min(Q as i32 - diff);
-            assert!(diff <= (Q as i32) / (1 << 10) + 1, "excessive error at index {i}");
+            assert!(
+                diff <= (Q as i32) / (1 << 10) + 1,
+                "excessive error at index {i}"
+            );
         }
     }
 }

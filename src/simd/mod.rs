@@ -1,8 +1,8 @@
 //! Portable SIMD kernels for ML-KEM polynomial arithmetic.
 //!
-//! All operations are lane-generic over `L` (must satisfy `SupportedLaneCount`).
-//! `N = 256` divides evenly by every supported lane count, so no scalar tail
-//! is needed for full-polynomial passes.
+//! All operations are lane-generic over `L` (must satisfy
+//! `SupportedLaneCount`). `N = 256` divides evenly by every supported lane
+//! count, so no scalar tail is needed for full-polynomial passes.
 //!
 //! Default lane count: `DEFAULT_LANES = 16` (256-bit i16 vectors).
 //! Use `_lanes::<L>` variants to override.
@@ -10,11 +10,12 @@
 //! Reference: PQClean ml-kem-768/avx2 -- `vpmullw`/`vpmulhw` for Montgomery
 //! multiply, `vpaddw`/`vpsubw` for NTT butterfly add/sub.
 
-use std::simd::prelude::*;
-use std::simd::Simd;
+use std::simd::{Simd, prelude::*};
 
-use crate::math::reduce::QINV;
-use crate::params::{N, Q};
+use crate::{
+    math::reduce::QINV,
+    params::{N, Q},
+};
 
 /// 16 x i16 = 256-bit default. Matches SSE4 / NEON register width.
 pub const DEFAULT_LANES: usize = 16;
@@ -23,20 +24,18 @@ pub const DEFAULT_LANES: usize = 16;
 
 /// Barrett reduction: `r \equiv a \pmod{q}`, centered `|r| <= q/2`.
 #[inline]
-pub fn barrett_reduce_vec<const L: usize>(a: Simd<i16, L>) -> Simd<i16, L>
-{
+pub fn barrett_reduce_vec<const L: usize>(a: Simd<i16, L>) -> Simd<i16, L> {
     // t = round(V * a / 2^{26}), V = round(2^{26} / q) = 20159
     const V: i32 = 20159;
     let aw: Simd<i32, L> = a.cast();
-    let t = ((Simd::<i32, L>::splat(V) * aw + Simd::splat(1 << 25)) >> Simd::splat(26))
-        .cast::<i16>();
+    let t =
+        ((Simd::<i32, L>::splat(V) * aw + Simd::splat(1 << 25)) >> Simd::splat(26)).cast::<i16>();
     a - t * Simd::splat(Q)
 }
 
 /// Montgomery reduction: `a * R^{-1} mod q`, `R = 2^{16}`.
 #[inline]
-pub fn montgomery_reduce_vec<const L: usize>(a: Simd<i32, L>) -> Simd<i16, L>
-{
+pub fn montgomery_reduce_vec<const L: usize>(a: Simd<i32, L>) -> Simd<i16, L> {
     let qinv = Simd::<i32, L>::splat(QINV as i32);
     let q = Simd::<i32, L>::splat(Q as i32);
     let s16 = Simd::splat(16);
@@ -48,8 +47,7 @@ pub fn montgomery_reduce_vec<const L: usize>(a: Simd<i32, L>) -> Simd<i16, L>
 
 /// Field multiply: `a * b * R^{-1} mod q`.
 #[inline]
-pub fn fqmul_vec<const L: usize>(a: Simd<i16, L>, b: Simd<i16, L>) -> Simd<i16, L>
-{
+pub fn fqmul_vec<const L: usize>(a: Simd<i16, L>, b: Simd<i16, L>) -> Simd<i16, L> {
     montgomery_reduce_vec(a.cast::<i32>() * b.cast::<i32>())
 }
 
@@ -62,8 +60,7 @@ pub fn poly_reduce(c: &mut [i16; N]) {
 }
 
 #[inline]
-pub fn poly_reduce_lanes<const L: usize>(c: &mut [i16; N])
-{
+pub fn poly_reduce_lanes<const L: usize>(c: &mut [i16; N]) {
     for ch in c.chunks_exact_mut(L) {
         barrett_reduce_vec(Simd::<i16, L>::from_slice(ch)).copy_to_slice(ch);
     }
@@ -76,8 +73,7 @@ pub fn poly_add(r: &mut [i16; N], a: &[i16; N], b: &[i16; N]) {
 }
 
 #[inline]
-pub fn poly_add_lanes<const L: usize>(r: &mut [i16; N], a: &[i16; N], b: &[i16; N])
-{
+pub fn poly_add_lanes<const L: usize>(r: &mut [i16; N], a: &[i16; N], b: &[i16; N]) {
     for i in (0..N).step_by(L) {
         let va = Simd::<i16, L>::from_slice(&a[i..]);
         let vb = Simd::<i16, L>::from_slice(&b[i..]);
@@ -92,8 +88,7 @@ pub fn poly_add_assign(r: &mut [i16; N], b: &[i16; N]) {
 }
 
 #[inline]
-pub fn poly_add_assign_lanes<const L: usize>(r: &mut [i16; N], b: &[i16; N])
-{
+pub fn poly_add_assign_lanes<const L: usize>(r: &mut [i16; N], b: &[i16; N]) {
     for i in (0..N).step_by(L) {
         let va = Simd::<i16, L>::from_slice(&r[i..]);
         let vb = Simd::<i16, L>::from_slice(&b[i..]);
@@ -108,8 +103,7 @@ pub fn poly_sub(r: &mut [i16; N], a: &[i16; N], b: &[i16; N]) {
 }
 
 #[inline]
-pub fn poly_sub_lanes<const L: usize>(r: &mut [i16; N], a: &[i16; N], b: &[i16; N])
-{
+pub fn poly_sub_lanes<const L: usize>(r: &mut [i16; N], a: &[i16; N], b: &[i16; N]) {
     for i in (0..N).step_by(L) {
         let va = Simd::<i16, L>::from_slice(&a[i..]);
         let vb = Simd::<i16, L>::from_slice(&b[i..]);
@@ -124,8 +118,7 @@ pub fn poly_tomont(c: &mut [i16; N]) {
 }
 
 #[inline]
-pub fn poly_tomont_lanes<const L: usize>(c: &mut [i16; N])
-{
+pub fn poly_tomont_lanes<const L: usize>(c: &mut [i16; N]) {
     const F: i32 = ((1u64 << 32) % (Q as u64)) as i32; // R^2 mod q = 1353
     let f = Simd::<i32, L>::splat(F);
     for i in (0..N).step_by(L) {
@@ -141,8 +134,7 @@ pub fn poly_fqmul_scalar(c: &mut [i16; N], scalar: i16) {
 }
 
 #[inline]
-pub fn poly_fqmul_scalar_lanes<const L: usize>(c: &mut [i16; N], scalar: i16)
-{
+pub fn poly_fqmul_scalar_lanes<const L: usize>(c: &mut [i16; N], scalar: i16) {
     let s = Simd::<i16, L>::splat(scalar);
     for i in (0..N).step_by(L) {
         let v = Simd::<i16, L>::from_slice(&c[i..]);
@@ -152,7 +144,8 @@ pub fn poly_fqmul_scalar_lanes<const L: usize>(c: &mut [i16; N], scalar: i16)
 
 // -- NTT butterfly -----------------------------------------------------------
 
-/// Forward butterfly: `(lo, hi) <- (lo + t, lo - t)` where `t = zeta * hi * R^{-1}`.
+/// Forward butterfly: `(lo, hi) <- (lo + t, lo - t)` where `t = zeta * hi *
+/// R^{-1}`.
 ///
 /// SIMD for chunks of `DEFAULT_LANES`, scalar fallback for the remainder.
 #[inline]
@@ -161,8 +154,7 @@ pub fn butterfly_fwd(lo: &mut [i16], hi: &mut [i16], zeta: i16) {
 }
 
 #[inline]
-pub fn butterfly_fwd_lanes<const L: usize>(lo: &mut [i16], hi: &mut [i16], zeta: i16)
-{
+pub fn butterfly_fwd_lanes<const L: usize>(lo: &mut [i16], hi: &mut [i16], zeta: i16) {
     debug_assert_eq!(lo.len(), hi.len());
     let n = lo.len();
     let z = Simd::<i16, L>::splat(zeta);
@@ -189,8 +181,7 @@ pub fn butterfly_inv(lo: &mut [i16], hi: &mut [i16], zeta: i16) {
 }
 
 #[inline]
-pub fn butterfly_inv_lanes<const L: usize>(lo: &mut [i16], hi: &mut [i16], zeta: i16)
-{
+pub fn butterfly_inv_lanes<const L: usize>(lo: &mut [i16], hi: &mut [i16], zeta: i16) {
     debug_assert_eq!(lo.len(), hi.len());
     let n = lo.len();
     let z = Simd::<i16, L>::splat(zeta);
@@ -231,8 +222,11 @@ mod tests {
             let v = Simd::<i32, DEFAULT_LANES>::splat(val);
             let result = montgomery_reduce_vec(v);
             let expected = reduce::montgomery_reduce(val);
-            assert!(result.as_array().iter().all(|&x| x == expected),
-                "mismatch for {val}: simd={}, scalar={expected}", result.as_array()[0]);
+            assert!(
+                result.as_array().iter().all(|&x| x == expected),
+                "mismatch for {val}: simd={}, scalar={expected}",
+                result.as_array()[0]
+            );
         }
     }
 
@@ -244,8 +238,11 @@ mod tests {
             a[i] = (i as i16 * 13) - 500;
             b[i] = (i as i16 * 7) + 100;
         }
-        let expected: Vec<i16> = a.iter().zip(b.iter())
-            .map(|(&x, &y)| reduce::fqmul(x, y)).collect();
+        let expected: Vec<i16> = a
+            .iter()
+            .zip(b.iter())
+            .map(|(&x, &y)| reduce::fqmul(x, y))
+            .collect();
         let mut result = [0i16; N];
         for i in (0..N).step_by(DEFAULT_LANES) {
             let va = Simd::<i16, DEFAULT_LANES>::from_slice(&a[i..]);

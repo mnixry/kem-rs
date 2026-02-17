@@ -10,9 +10,12 @@
 //! | **XOF**     | SHAKE-128   | [`xof_absorb`] |
 //! | **J**       | SHAKE-256   | [`rkprf`] |
 
+use sha3::{
+    Digest, Sha3_256, Sha3_512, Shake128, Shake256,
+    digest::{ExtendableOutput, Update, XofReader},
+};
+
 use crate::params::{SSBYTES, SYMBYTES};
-use sha3::digest::{ExtendableOutput, Update, XofReader};
-use sha3::{Digest, Sha3_256, Sha3_512, Shake128, Shake256};
 
 /// H(input) = SHA3-256(input) -> 32 bytes.
 #[inline]
@@ -39,7 +42,8 @@ pub fn prf(seed: &[u8; SYMBYTES], nonce: u8, output: &mut [u8]) {
     reader.read(output);
 }
 
-/// SHAKE-128 XOF absorber for matrix sampling. Absorbs seed || x || y, returns reader for uniform bytes.
+/// SHAKE-128 XOF absorber for matrix sampling. Absorbs seed || x || y, returns
+/// reader for uniform bytes.
 pub fn xof_absorb(seed: &[u8; SYMBYTES], x: u8, y: u8) -> impl XofReader {
     let mut h = Shake128::default();
     Update::update(&mut h, seed);
@@ -47,7 +51,8 @@ pub fn xof_absorb(seed: &[u8; SYMBYTES], x: u8, y: u8) -> impl XofReader {
     h.finalize_xof()
 }
 
-/// J(key, ct) = SHAKE-256(key || ct) -> 32 bytes. Rejection-key PRF for implicit reject.
+/// J(key, ct) = SHAKE-256(key || ct) -> 32 bytes. Rejection-key PRF for
+/// implicit reject.
 pub fn rkprf(key: &[u8; SYMBYTES], ct: &[u8]) -> [u8; SSBYTES] {
     let mut h = Shake256::default();
     Update::update(&mut h, key);
