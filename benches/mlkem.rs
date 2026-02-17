@@ -7,6 +7,9 @@ use kem_rs::{
     MlKem512, MlKem768, MlKem1024, MlKemParams, decapsulate, encapsulate_derand, keypair_derand,
 };
 
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 fn fixed_keygen_coins(tag: u8) -> [u8; 64] {
     core::array::from_fn(|i| (i as u8).wrapping_add(tag.wrapping_mul(37)))
 }
@@ -39,6 +42,15 @@ fn bench_param_set<P: MlKemParams>(c: &mut Criterion, label: &str, tag: u8) {
         b.iter(|| {
             let out = decapsulate::<P>(black_box(&ct), black_box(&sk));
             black_box(out);
+        });
+    });
+
+    c.bench_function(&format!("{label}/roundtrip_derand"), |b| {
+        b.iter(|| {
+            let (pk_rt, sk_rt) = keypair_derand::<P>(black_box(&keygen_coins));
+            let (ct_rt, ss_enc) = encapsulate_derand::<P>(black_box(&pk_rt), black_box(&enc_coins));
+            let ss_dec = decapsulate::<P>(black_box(&ct_rt), black_box(&sk_rt));
+            black_box(ss_enc.as_bytes() == ss_dec.as_bytes());
         });
     });
 }
