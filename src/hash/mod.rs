@@ -14,7 +14,7 @@ use crate::params::{SSBYTES, SYMBYTES};
 use sha3::digest::{ExtendableOutput, Update, XofReader};
 use sha3::{Digest, Sha3_256, Sha3_512, Shake128, Shake256};
 
-/// H(input) = SHA3-256(input) → 32 bytes.
+/// H(input) = SHA3-256(input) -> 32 bytes.
 #[inline]
 pub fn hash_h(input: &[u8]) -> [u8; 32] {
     let mut h = Sha3_256::new();
@@ -22,7 +22,7 @@ pub fn hash_h(input: &[u8]) -> [u8; 32] {
     h.finalize().into()
 }
 
-/// G(input) = SHA3-512(input) → 64 bytes.
+/// G(input) = SHA3-512(input) -> 64 bytes.
 #[inline]
 pub fn hash_g(input: &[u8]) -> [u8; 64] {
     let mut h = Sha3_512::new();
@@ -30,7 +30,7 @@ pub fn hash_g(input: &[u8]) -> [u8; 64] {
     h.finalize().into()
 }
 
-/// PRFη(seed, nonce) = SHAKE-256(seed ‖ nonce), squeezed to fill `output`.
+/// PRF_eta(seed, nonce) = SHAKE-256(seed || nonce), squeezed to fill output.
 pub fn prf(seed: &[u8; SYMBYTES], nonce: u8, output: &mut [u8]) {
     let mut h = Shake256::default();
     Update::update(&mut h, seed);
@@ -39,10 +39,7 @@ pub fn prf(seed: &[u8; SYMBYTES], nonce: u8, output: &mut [u8]) {
     reader.read(output);
 }
 
-/// Create a SHAKE-128 XOF absorber for matrix sampling.
-///
-/// Absorbs `seed ‖ x ‖ y` and returns a reader from which uniform
-/// bytes can be squeezed.
+/// SHAKE-128 XOF absorber for matrix sampling. Absorbs seed || x || y, returns reader for uniform bytes.
 pub fn xof_absorb(seed: &[u8; SYMBYTES], x: u8, y: u8) -> impl XofReader {
     let mut h = Shake128::default();
     Update::update(&mut h, seed);
@@ -50,9 +47,7 @@ pub fn xof_absorb(seed: &[u8; SYMBYTES], x: u8, y: u8) -> impl XofReader {
     h.finalize_xof()
 }
 
-/// J(key, ct) = SHAKE-256(key ‖ ct) → 32 bytes.
-///
-/// Used as the rejection-key PRF in decapsulation (implicit reject).
+/// J(key, ct) = SHAKE-256(key || ct) -> 32 bytes. Rejection-key PRF for implicit reject.
 pub fn rkprf(key: &[u8; SYMBYTES], ct: &[u8]) -> [u8; SSBYTES] {
     let mut h = Shake256::default();
     Update::update(&mut h, key);

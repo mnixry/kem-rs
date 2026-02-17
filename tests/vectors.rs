@@ -21,20 +21,12 @@ use rand_core::UnwrapErr;
 
 /// Fixed 64-byte coins for deterministic keygen tests.
 fn fixed_keygen_coins(variant: u8) -> [u8; 64] {
-    let mut coins = [0u8; 64];
-    for i in 0..64 {
-        coins[i] = (i as u8).wrapping_add(variant.wrapping_mul(37));
-    }
-    coins
+    core::array::from_fn(|i| (i as u8).wrapping_add(variant.wrapping_mul(37)))
 }
 
 /// Fixed 32-byte coins for deterministic encapsulation tests.
 fn fixed_enc_coins(variant: u8) -> [u8; 32] {
-    let mut coins = [0u8; 32];
-    for i in 0..32 {
-        coins[i] = (i as u8).wrapping_add(variant.wrapping_mul(53));
-    }
-    coins
+    core::array::from_fn(|i| (i as u8).wrapping_add(variant.wrapping_mul(53)))
 }
 
 // ---------------------------------------------------------------------------

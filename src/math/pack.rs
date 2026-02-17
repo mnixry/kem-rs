@@ -1,13 +1,6 @@
-//! Byte-level packing, unpacking, compression, and decompression.
-//!
-//! All functions operate on raw coefficient slices (`&[i16; N]`) and byte
-//! buffers, keeping this module independent of the `Poly` wrapper.
+//! Byte-level packing, unpacking, compression, and decompression on raw coefficient slices.
 
 use crate::params::{N, Q, POLYBYTES, SYMBYTES};
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 /// Conditionally add q to make a coefficient non-negative.
 #[inline]
@@ -17,7 +10,7 @@ pub(crate) fn csubq(a: i16) -> u16 {
     t
 }
 
-/// Compress coefficient to `d` bits: `round((2^d / q) · x) mod 2^d`.
+/// Compress coefficient to `d` bits: `round((2^d / q) * x) mod 2^d`.
 ///
 /// Input `x` must be in `[0, q)`.
 #[inline]
@@ -26,17 +19,13 @@ fn compress(x: u16, d: u32) -> u16 {
     (t & ((1u32 << d) - 1)) as u16
 }
 
-/// Decompress `d`-bit value: `round((q / 2^d) · y)`.
+/// Decompress `d`-bit value: `round((q / 2^d) * y)`.
 #[inline]
 fn decompress(y: u16, d: u32) -> u16 {
     (((y as u32) * (Q as u32) + (1u32 << (d - 1))) >> d) as u16
 }
 
-// ---------------------------------------------------------------------------
-// 12-bit serialisation (POLYBYTES = 384)
-// ---------------------------------------------------------------------------
-
-/// Serialize coefficients to bytes (12-bit encoding, 2 coefficients → 3 bytes).
+/// Serialize coefficients to bytes (12-bit encoding, 2 coefficients -> 3 bytes).
 pub fn poly_tobytes(r: &mut [u8], a: &[i16; N]) {
     debug_assert!(r.len() >= POLYBYTES);
     for i in 0..N / 2 {
@@ -57,13 +46,7 @@ pub fn poly_frombytes(r: &mut [i16; N], a: &[u8]) {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Message encoding (1-bit per coefficient)
-// ---------------------------------------------------------------------------
-
-/// Decode a 32-byte message into polynomial coefficients.
-///
-/// Each bit maps to `0` or `⌈q/2⌉ = 1665`.
+/// Decode a 32-byte message into polynomial coefficients. Each bit maps to `0` or `ceil(q/2) = 1665`.
 pub fn poly_frommsg(r: &mut [i16; N], msg: &[u8; SYMBYTES]) {
     for i in 0..N / 8 {
         for j in 0..8u32 {
@@ -88,11 +71,7 @@ pub fn poly_tomsg(msg: &mut [u8; SYMBYTES], a: &[i16; N]) {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Polynomial compression (d = 4 or 5, for ciphertext v component)
-// ---------------------------------------------------------------------------
-
-/// Compress with d = 4 (ML-KEM-512 / 768): 2 coefficients → 1 byte, 128 bytes total.
+/// Compress with d = 4 (ML-KEM-512/768): 2 coefficients -> 1 byte, 128 bytes total.
 pub fn poly_compress_d4(r: &mut [u8], a: &[i16; N]) {
     debug_assert!(r.len() >= 128);
     for i in 0..N / 2 {
@@ -111,7 +90,7 @@ pub fn poly_decompress_d4(r: &mut [i16; N], a: &[u8]) {
     }
 }
 
-/// Compress with d = 5 (ML-KEM-1024): 8 coefficients → 5 bytes, 160 bytes total.
+/// Compress with d = 5 (ML-KEM-1024): 8 coefficients -> 5 bytes, 160 bytes total.
 pub fn poly_compress_d5(r: &mut [u8], a: &[i16; N]) {
     debug_assert!(r.len() >= 160);
     for i in 0..N / 8 {
@@ -140,11 +119,7 @@ pub fn poly_decompress_d5(r: &mut [i16; N], a: &[u8]) {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Polynomial-vector element compression (d = 10 or 11, for ciphertext u)
-// ---------------------------------------------------------------------------
-
-/// Compress one polynomial with d = 10 (ML-KEM-512/768): 4 coefficients → 5 bytes, 320 bytes.
+/// Compress one polynomial with d = 10 (ML-KEM-512/768): 4 coefficients -> 5 bytes, 320 bytes.
 pub fn poly_compress_d10(r: &mut [u8], a: &[i16; N]) {
     debug_assert!(r.len() >= 320);
     for i in 0..N / 4 {
@@ -171,7 +146,7 @@ pub fn poly_decompress_d10(r: &mut [i16; N], a: &[u8]) {
     }
 }
 
-/// Compress one polynomial with d = 11 (ML-KEM-1024): 8 coefficients → 11 bytes, 352 bytes.
+/// Compress one polynomial with d = 11 (ML-KEM-1024): 8 coefficients -> 11 bytes, 352 bytes.
 pub fn poly_compress_d11(r: &mut [u8], a: &[i16; N]) {
     debug_assert!(r.len() >= 352);
     for i in 0..N / 8 {
@@ -217,10 +192,6 @@ pub fn poly_decompress_d11(r: &mut [i16; N], a: &[u8]) {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -228,8 +199,8 @@ mod tests {
     #[test]
     fn tobytes_frombytes_roundtrip() {
         let mut a = [0i16; N];
-        for i in 0..N {
-            a[i] = (i as i16 * 13) % (Q - 1); // values in [0, q-1)
+        for (i, c) in a.iter_mut().enumerate() {
+            *c = (i as i16 * 13) % (Q - 1);
         }
         let mut buf = [0u8; POLYBYTES];
         poly_tobytes(&mut buf, &a);
@@ -253,8 +224,8 @@ mod tests {
     #[test]
     fn compress_decompress_d4_roundtrip() {
         let mut a = [0i16; N];
-        for i in 0..N {
-            a[i] = (i as i16 * 7) % Q;
+        for (i, c) in a.iter_mut().enumerate() {
+            *c = (i as i16 * 7) % Q;
         }
         let mut buf = [0u8; 128];
         poly_compress_d4(&mut buf, &a);
@@ -263,9 +234,9 @@ mod tests {
         poly_decompress_d4(&mut b, &buf);
 
         // Compression is lossy; check round-trip error is bounded
-        for i in 0..N {
-            let original = csubq(a[i]) as i32;
-            let recovered = b[i] as i32;
+        for (i, (&ai, &bi)) in a.iter().zip(b.iter()).enumerate() {
+            let original = csubq(ai) as i32;
+            let recovered = bi as i32;
             let diff = (original - recovered + Q as i32) % Q as i32;
             let diff = diff.min(Q as i32 - diff);
             assert!(diff <= (Q as i32) / (1 << 4), "excessive error at index {i}");
@@ -275,8 +246,8 @@ mod tests {
     #[test]
     fn compress_decompress_d10_roundtrip() {
         let mut a = [0i16; N];
-        for i in 0..N {
-            a[i] = (i as i16 * 11) % Q;
+        for (i, c) in a.iter_mut().enumerate() {
+            *c = (i as i16 * 11) % Q;
         }
         let mut buf = [0u8; 320];
         poly_compress_d10(&mut buf, &a);
@@ -284,9 +255,9 @@ mod tests {
         let mut b = [0i16; N];
         poly_decompress_d10(&mut b, &buf);
 
-        for i in 0..N {
-            let original = csubq(a[i]) as i32;
-            let recovered = b[i] as i32;
+        for (i, (&ai, &bi)) in a.iter().zip(b.iter()).enumerate() {
+            let original = csubq(ai) as i32;
+            let recovered = bi as i32;
             let diff = (original - recovered + Q as i32) % Q as i32;
             let diff = diff.min(Q as i32 - diff);
             assert!(diff <= (Q as i32) / (1 << 10) + 1, "excessive error at index {i}");

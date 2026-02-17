@@ -1,60 +1,30 @@
 //! Polynomial type and coefficient-level operations.
 //!
-//! `Poly` wraps `[i16; N]` (N = 256) and provides arithmetic, NTT transforms,
+//! `Poly` wraps `[i16; N]` (N=256) and provides arithmetic, NTT transforms,
 //! compression, serialisation, and noise sampling.
 
 use crate::hash;
-use crate::params::{N, Q, SYMBYTES};
-use super::{ntt, pack, reduce, sample};
+use crate::params::{N, SYMBYTES};
+use super::{ntt, pack, sample};
+use core::ops;
 
-/// Polynomial in Rq = Zq[X]/(X^n + 1), stored as N = 256 coefficients.
+/// Polynomial in `R_q = Z_q[X]/(X^n + 1)`, `N = 256` coefficients.
 #[derive(Clone, Copy)]
 pub struct Poly {
     pub(crate) coeffs: [i16; N],
 }
 
 impl Poly {
-    /// The zero polynomial.
     #[inline]
     pub const fn zero() -> Self {
         Poly { coeffs: [0i16; N] }
     }
 
-    // ---- Arithmetic -------------------------------------------------------
-
-    /// Coefficient-wise addition: `self = a + b`.
-    #[inline]
-    pub fn add(&mut self, a: &Poly, b: &Poly) {
-        for i in 0..N {
-            self.coeffs[i] = a.coeffs[i] + b.coeffs[i];
-        }
-    }
-
-    /// Coefficient-wise subtraction: `self = a − b`.
-    #[inline]
-    pub fn sub(&mut self, a: &Poly, b: &Poly) {
-        for i in 0..N {
-            self.coeffs[i] = a.coeffs[i] - b.coeffs[i];
-        }
-    }
-
-    /// In-place addition: `self += other`.
-    #[inline]
-    pub fn add_assign(&mut self, other: &Poly) {
-        for i in 0..N {
-            self.coeffs[i] += other.coeffs[i];
-        }
-    }
-
     /// Barrett-reduce every coefficient to the centered range.
     #[inline]
     pub fn reduce(&mut self) {
-        for c in self.coeffs.iter_mut() {
-            *c = reduce::barrett_reduce(*c);
-        }
+        crate::simd::poly_reduce(&mut self.coeffs);
     }
-
-    // ---- NTT / inverse NTT -----------------------------------------------
 
     /// Forward NTT (in-place).
     #[inline]
@@ -70,50 +40,41 @@ impl Poly {
 
     /// Convert all coefficients to Montgomery representation.
     pub fn tomont(&mut self) {
-        const F: i32 = ((1u64 << 32) % (Q as u64)) as i32; // R² mod q = 1353
-        for c in self.coeffs.iter_mut() {
-            *c = reduce::montgomery_reduce((*c as i32) * F);
-        }
+        crate::simd::poly_tomont(&mut self.coeffs);
     }
 
-    /// Pointwise Montgomery multiplication: `self = a · b` (NTT domain).
-    ///
-    /// Uses pairs of basemul calls (128 pairs of degree-1 multiplications).
+    /// Pointwise Montgomery multiply: `self = a * b` (NTT domain, 128 basemul pairs).
     pub fn basemul_montgomery(&mut self, a: &Poly, b: &Poly) {
         for i in 0..N / 4 {
-            let zeta_idx = 64 + i;
+            let zi = 64 + i;
             ntt::basemul(
                 (&mut self.coeffs[4 * i..4 * i + 2]).try_into().unwrap(),
                 (&a.coeffs[4 * i..4 * i + 2]).try_into().unwrap(),
                 (&b.coeffs[4 * i..4 * i + 2]).try_into().unwrap(),
-                ntt::ZETAS[zeta_idx],
+                ntt::ZETAS[zi],
             );
             ntt::basemul(
                 (&mut self.coeffs[4 * i + 2..4 * i + 4]).try_into().unwrap(),
                 (&a.coeffs[4 * i + 2..4 * i + 4]).try_into().unwrap(),
                 (&b.coeffs[4 * i + 2..4 * i + 4]).try_into().unwrap(),
-                -ntt::ZETAS[zeta_idx],
+                -ntt::ZETAS[zi],
             );
         }
     }
 
-    // ---- Serialisation ----------------------------------------------------
-
-    /// Serialize to bytes (12-bit encoding → 384 bytes).
+    /// Serialize to bytes (12-bit packing, 384 bytes).
     pub fn tobytes(&self, r: &mut [u8]) {
         pack::poly_tobytes(r, &self.coeffs);
     }
 
-    /// Deserialize from bytes (12-bit decoding).
+    /// Deserialize from bytes (12-bit unpacking).
     pub fn frombytes(a: &[u8]) -> Self {
         let mut p = Poly::zero();
         pack::poly_frombytes(&mut p.coeffs, a);
         p
     }
 
-    // ---- Message encoding -------------------------------------------------
-
-    /// Decode a 32-byte message to polynomial (1-bit per coefficient).
+    /// Decode a 32-byte message to polynomial (1 bit per coefficient).
     pub fn frommsg(msg: &[u8; SYMBYTES]) -> Self {
         let mut p = Poly::zero();
         pack::poly_frommsg(&mut p.coeffs, msg);
@@ -127,14 +88,12 @@ impl Poly {
         msg
     }
 
-    // ---- Compression (d = 4 or 5, scalar ciphertext component) -----------
-
     /// Compress to `d` bits and write to buffer.
     pub fn compress(&self, r: &mut [u8], d: u32) {
         match d {
             4 => pack::poly_compress_d4(r, &self.coeffs),
             5 => pack::poly_compress_d5(r, &self.coeffs),
-            _ => panic!("unsupported compression parameter d={d}"),
+            _ => unreachable!(),
         }
     }
 
@@ -144,38 +103,46 @@ impl Poly {
         match d {
             4 => pack::poly_decompress_d4(&mut p.coeffs, a),
             5 => pack::poly_decompress_d5(&mut p.coeffs, a),
-            _ => panic!("unsupported compression parameter d={d}"),
+            _ => unreachable!(),
         }
         p
     }
 
-    // ---- Noise sampling ---------------------------------------------------
-
-    /// Sample noise polynomial with η = 1 (eta1) from PRF(seed, nonce).
+    /// Sample noise polynomial from `PRF(seed, nonce)` with parameter `eta`.
     pub fn getnoise_eta(eta: usize, seed: &[u8; SYMBYTES], nonce: u8) -> Self {
         let mut p = Poly::zero();
         match eta {
             2 => {
-                let mut buf = [0u8; 2 * N / 4]; // 128 bytes
+                let mut buf = [0u8; 2 * N / 4];
                 hash::prf(seed, nonce, &mut buf);
                 sample::cbd2(&mut p.coeffs, &buf);
             }
             3 => {
-                let mut buf = [0u8; 3 * N / 4]; // 192 bytes
+                let mut buf = [0u8; 3 * N / 4];
                 hash::prf(seed, nonce, &mut buf);
                 sample::cbd3(&mut p.coeffs, &buf);
             }
-            _ => panic!("unsupported eta={eta}"),
+            _ => unreachable!(),
         }
         p
     }
 }
 
+// -- conversions & traits ----------------------------------------------------
+
+impl From<[i16; N]> for Poly {
+    #[inline]
+    fn from(coeffs: [i16; N]) -> Self { Poly { coeffs } }
+}
+
+impl From<Poly> for [i16; N] {
+    #[inline]
+    fn from(p: Poly) -> Self { p.coeffs }
+}
+
 impl Default for Poly {
     #[inline]
-    fn default() -> Self {
-        Poly::zero()
-    }
+    fn default() -> Self { Poly::zero() }
 }
 
 impl core::fmt::Debug for Poly {
@@ -186,14 +153,48 @@ impl core::fmt::Debug for Poly {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
+// -- operator overloading (SIMD-backed) --------------------------------------
+
+impl<'b> ops::Add<&'b Poly> for &Poly {
+    type Output = Poly;
+    #[inline]
+    fn add(self, rhs: &'b Poly) -> Poly {
+        let mut r = Poly::zero();
+        crate::simd::poly_add(&mut r.coeffs, &self.coeffs, &rhs.coeffs);
+        r
+    }
+}
+
+impl<'b> ops::Sub<&'b Poly> for &Poly {
+    type Output = Poly;
+    #[inline]
+    fn sub(self, rhs: &'b Poly) -> Poly {
+        let mut r = Poly::zero();
+        crate::simd::poly_sub(&mut r.coeffs, &self.coeffs, &rhs.coeffs);
+        r
+    }
+}
+
+impl ops::AddAssign<&Poly> for Poly {
+    #[inline]
+    fn add_assign(&mut self, rhs: &Poly) {
+        crate::simd::poly_add_assign(&mut self.coeffs, &rhs.coeffs);
+    }
+}
+
+impl ops::SubAssign<&Poly> for Poly {
+    #[inline]
+    fn sub_assign(&mut self, rhs: &Poly) {
+        for i in 0..N {
+            self.coeffs[i] -= rhs.coeffs[i];
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::params::POLYBYTES;
+    use crate::params::{POLYBYTES, Q};
 
     #[test]
     fn add_sub_inverse() {
@@ -203,12 +204,27 @@ mod tests {
             a.coeffs[i] = (i as i16) % Q;
             b.coeffs[i] = ((N - i) as i16) % Q;
         }
-        let mut sum = Poly::zero();
-        sum.add(&a, &b);
-
-        let mut recovered = Poly::zero();
-        recovered.sub(&sum, &b);
+        let sum = &a + &b;
+        let recovered = &sum - &b;
         assert_eq!(a.coeffs, recovered.coeffs);
+    }
+
+    #[test]
+    fn add_assign_works() {
+        let mut a = Poly::zero();
+        let b = Poly::from([1i16; N]);
+        a += &b;
+        assert!(a.coeffs.iter().all(|&c| c == 1));
+        a += &b;
+        assert!(a.coeffs.iter().all(|&c| c == 2));
+    }
+
+    #[test]
+    fn from_array_roundtrip() {
+        let arr: [i16; N] = core::array::from_fn(|i| i as i16);
+        let p = Poly::from(arr);
+        let arr2: [i16; N] = p.into();
+        assert_eq!(arr, arr2);
     }
 
     #[test]
@@ -219,7 +235,6 @@ mod tests {
         }
         let mut buf = [0u8; POLYBYTES];
         p.tobytes(&mut buf);
-
         let q = Poly::frombytes(&buf);
         assert_eq!(p.coeffs, q.coeffs);
     }
@@ -236,17 +251,13 @@ mod tests {
     fn getnoise_eta2_bounded() {
         let seed = [0u8; SYMBYTES];
         let p = Poly::getnoise_eta(2, &seed, 0);
-        for &c in &p.coeffs {
-            assert!((-2..=2).contains(&c));
-        }
+        for &c in &p.coeffs { assert!((-2..=2).contains(&c)); }
     }
 
     #[test]
     fn getnoise_eta3_bounded() {
         let seed = [1u8; SYMBYTES];
         let p = Poly::getnoise_eta(3, &seed, 0);
-        for &c in &p.coeffs {
-            assert!((-3..=3).contains(&c));
-        }
+        for &c in &p.coeffs { assert!((-3..=3).contains(&c)); }
     }
 }

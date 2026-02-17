@@ -2,16 +2,15 @@
 
 use crate::params::Q;
 
-/// q⁻¹ mod 2¹⁶ (Montgomery inverse).
+/// q^{-1} mod 2^{16} (Montgomery inverse).
 pub const QINV: i16 = -3327;
 
-/// 2¹⁶ mod q (Montgomery radix residue).
+/// 2^{16} mod q (Montgomery radix residue).
 pub const MONT: i16 = -1044;
 
-/// Montgomery reduction: computes `a · R⁻¹ mod q` where R = 2¹⁶.
+/// Montgomery reduction: computes `a * R^{-1} mod q` where R = 2^{16}.
 ///
-/// Input:  `a ∈ {−q·2¹⁵, …, q·2¹⁵ − 1}`.
-/// Output: `r ∈ {−q+1, …, q−1}` with `r ≡ a·R⁻¹ (mod q)`.
+/// Input: `a in {-q*2^{15}, ..., q*2^{15} - 1}`. Output: `r in {-q+1, ..., q-1}` with `r \equiv a*R^{-1} (mod q)`.
 #[inline]
 pub fn montgomery_reduce(a: i32) -> i16 {
     let t = (a as i16).wrapping_mul(QINV);
@@ -20,8 +19,7 @@ pub fn montgomery_reduce(a: i32) -> i16 {
 
 /// Barrett reduction: centered reduction modulo q.
 ///
-/// Input:  `a` with `|a| < 2q` (typical after butterfly addition).
-/// Output: `r ∈ {−⌊q/2⌋, …, ⌊q/2⌋}` with `r ≡ a (mod q)`.
+/// Input `a` with `|a| < 2q` (typical after butterfly). Output: `r in {-floor(q/2), ..., floor(q/2)}` with `r \equiv a (mod q)`.
 #[inline]
 pub fn barrett_reduce(a: i16) -> i16 {
     const V: i32 = ((1i32 << 26) + (Q as i32) / 2) / (Q as i32); // 20159
@@ -29,15 +27,11 @@ pub fn barrett_reduce(a: i16) -> i16 {
     a - t.wrapping_mul(Q)
 }
 
-/// Field multiplication followed by Montgomery reduction: `a·b·R⁻¹ mod q`.
+/// Field multiplication followed by Montgomery reduction: `a*b*R^{-1} mod q`.
 #[inline]
 pub fn fqmul(a: i16, b: i16) -> i16 {
     montgomery_reduce((a as i32) * (b as i32))
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {

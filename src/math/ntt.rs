@@ -1,17 +1,14 @@
-//! Number-Theoretic Transform and base multiplication in Zq\[X\]/(X² − ζ).
+//! Number-Theoretic Transform and base multiplication in `Z_q[X]/(X^2 - zeta)`.
 //!
-//! - [`ntt`]: forward NTT, standard order → bit-reversed order.
-//! - [`invntt`]: inverse NTT with Montgomery scaling factor.
-//! - [`basemul`]: degree-1 multiplication in the NTT domain.
-//! - [`ZETAS`]: precomputed twiddle factors (128 entries, Montgomery form).
+//! - `ntt`: forward NTT, standard order -> bit-reversed order.
+//! - `invntt`: inverse NTT with Montgomery scaling.
+//! - `basemul`: degree-1 multiplication in the NTT domain.
 
-use super::reduce::{barrett_reduce, fqmul};
+use super::reduce::fqmul;
 use crate::params::N;
 
-/// Precomputed twiddle factors in Montgomery form.
-///
-/// Generated from the primitive 512-th root of unity (ζ = 17)
-/// via bit-reversed indexing, then scaled into Montgomery domain.
+/// Twiddle factors in Montgomery form, from primitive 512th root zeta=17,
+/// bit-reversed indexing.
 pub static ZETAS: [i16; 128] = [
     -1044, -758, -359, -1517, 1493, 1422, 287, 202, -171, 622, 1577, 182, 962, -1202, -1474,
     1468, 573, -1325, 264, 383, -829, 1458, -1602, -130, -681, 1017, 732, 608, -1542, 411, -205,
@@ -24,10 +21,7 @@ pub static ZETAS: [i16; 128] = [
     -1460, 1522, 1628,
 ];
 
-/// Forward NTT (in-place).
-///
-/// Input in standard coefficient order, output in bit-reversed order.
-/// All arithmetic modulo q = 3329.
+/// Forward NTT (in-place). Standard order in, bit-reversed order out.
 pub fn ntt(r: &mut [i16; N]) {
     let mut k: usize = 1;
     let mut len = 128;
@@ -36,24 +30,18 @@ pub fn ntt(r: &mut [i16; N]) {
         while start < N {
             let zeta = ZETAS[k];
             k += 1;
-            for j in start..(start + len) {
-                let t = fqmul(zeta, r[j + len]);
-                r[j + len] = r[j] - t;
-                r[j] = r[j] + t;
-            }
+            let (lo, hi) = r[start..start + 2 * len].split_at_mut(len);
+            crate::simd::butterfly_fwd(lo, hi, zeta);
             start += 2 * len;
         }
         len >>= 1;
     }
 }
 
-/// Inverse NTT (in-place).
-///
-/// Input in bit-reversed order, output in standard order with
-/// each coefficient multiplied by Montgomery factor 2¹⁶.
+/// Inverse NTT (in-place). Bit-reversed in, standard order out,
+/// each coefficient scaled by Montgomery factor `R = 2^{16}`.
 pub fn invntt(r: &mut [i16; N]) {
-    const F: i16 = 1441; // mont² / 128
-
+    const F: i16 = 1441; // mont^2 * 128^{-1} mod q
     let mut k: usize = 127;
     let mut len = 2;
     while len <= 128 {
@@ -61,24 +49,17 @@ pub fn invntt(r: &mut [i16; N]) {
         while start < N {
             let zeta = ZETAS[k];
             k = k.wrapping_sub(1);
-            for j in start..(start + len) {
-                let t = r[j];
-                r[j] = barrett_reduce(t + r[j + len]);
-                r[j + len] = fqmul(zeta, r[j + len] - t);
-            }
+            let (lo, hi) = r[start..start + 2 * len].split_at_mut(len);
+            crate::simd::butterfly_inv(lo, hi, zeta);
             start += 2 * len;
         }
         len <<= 1;
     }
-    for coeff in r.iter_mut() {
-        *coeff = fqmul(*coeff, F);
-    }
+    crate::simd::poly_fqmul_scalar(r, F);
 }
 
-/// Base multiplication of two degree-1 polynomials in Zq\[X\]/(X² − ζ).
-///
-/// Computes `r = a · b mod (X² − ζ)` where `a`, `b`, `r` are pairs
-/// of NTT-domain coefficients.
+/// Base multiply two degree-1 polys in `Z_q[X]/(X^2 - zeta)`.
+/// `r = a * b mod (X^2 - zeta)`.
 #[inline]
 pub fn basemul(r: &mut [i16; 2], a: &[i16; 2], b: &[i16; 2], zeta: i16) {
     r[0] = fqmul(a[1], b[1]);
@@ -88,69 +69,51 @@ pub fn basemul(r: &mut [i16; 2], a: &[i16; 2], b: &[i16; 2], zeta: i16) {
     r[1] += fqmul(a[1], b[0]);
 }
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::math::reduce::barrett_reduce;
 
     #[test]
     fn ntt_invntt_roundtrip() {
         let mut a = [0i16; N];
-        for i in 0..N {
-            a[i] = (i % 13) as i16;
+        for (i, c) in a.iter_mut().enumerate() {
+            *c = (i % 13) as i16;
         }
         let original = a;
-
         ntt(&mut a);
         assert_ne!(a, original, "NTT should change coefficients");
-
         invntt(&mut a);
 
-        // invntt(ntt(a))[i] ≡ a[i] · R (mod q).
-        // Undo the Montgomery factor by multiplying each coefficient by R⁻¹.
-        for coeff in a.iter_mut() {
-            *coeff = fqmul(*coeff, 1); // fqmul(x, 1) = x · R⁻¹ mod q
-            *coeff = barrett_reduce(*coeff);
+        // invntt(ntt(a))[i] = a[i] * R mod q; undo with fqmul(c, 1) = c * R^{-1}
+        for c in a.iter_mut() {
+            *c = barrett_reduce(fqmul(*c, 1));
         }
-
         for i in 0..N {
             assert_eq!(a[i], original[i], "mismatch at index {i}");
         }
     }
 
-    /// Schoolbook polynomial multiplication in Z_q[x]/(x^256 + 1).
     fn schoolbook_mul(a: &[i16; N], b: &[i16; N]) -> [i16; N] {
         let mut c = [0i32; N];
-        for i in 0..N {
-            for j in 0..N {
-                if i + j < N {
-                    c[i + j] += (a[i] as i32) * (b[j] as i32);
-                } else {
-                    c[i + j - N] -= (a[i] as i32) * (b[j] as i32);
-                }
+        for (i, &ai) in a.iter().enumerate() {
+            for (j, &bj) in b.iter().enumerate() {
+                let prod = (ai as i32) * (bj as i32);
+                if i + j < N { c[i + j] += prod; } else { c[i + j - N] -= prod; }
             }
         }
         let q = crate::params::Q as i32;
         let mut result = [0i16; N];
-        for i in 0..N {
-            result[i] = (c[i] % q) as i16;
-            if result[i] < 0 {
-                result[i] += q as i16;
-            }
+        for (r, &ci) in result.iter_mut().zip(c.iter()) {
+            *r = (ci % q) as i16;
+            if *r < 0 { *r += q as i16; }
         }
         result
     }
 
-    /// Normalise a coefficient to [0, q).
     fn normalise(c: i16) -> i16 {
-        let q = crate::params::Q;
         let mut v = barrett_reduce(c);
-        if v < 0 {
-            v += q;
-        }
+        if v < 0 { v += crate::params::Q; }
         v
     }
 
@@ -164,7 +127,6 @@ mod tests {
             a.coeffs[i] = ((i * 7 + 3) % 100) as i16;
             b.coeffs[i] = ((i * 13 + 1) % 100) as i16;
         }
-
         let expected = schoolbook_mul(&a.coeffs, &b.coeffs);
 
         let mut a_ntt = a;
@@ -174,26 +136,11 @@ mod tests {
 
         let mut c_ntt = Poly::zero();
         c_ntt.basemul_montgomery(&a_ntt, &b_ntt);
-
         c_ntt.invntt_tomont();
 
-        // The result is a*b*R^{-1} in Montgomery domain after invntt_tomont.
-        // To get standard coefficients: fqmul(c, 1) = c * R^{-1}.
-        // But basemul introduces one R^{-1} and invntt_tomont handles another.
-        // The net scaling is: c = a*b (no extra factor? or with R factor?)
-        //
-        // Actually: NTT introduces zeta scaling, basemul multiplies + R^{-1},
-        // invntt undoes NTT and applies f=1441=R^2/128 via fqmul (another R^{-1}).
-        // Net for basemul(NTT(a), NTT(b)) + invntt:
-        //   a*b * R^{-1} (from basemul) * R (from invntt_tomont's handling)
-        //   = a*b, but the exact factor needs to be verified empirically.
-        for i in 0..N {
-            let got = normalise(c_ntt.coeffs[i]);
-            assert_eq!(
-                got, expected[i],
-                "mismatch at index {i}: got {got}, expected {}",
-                expected[i]
-            );
+        for (i, (&got_raw, &exp)) in c_ntt.coeffs.iter().zip(expected.iter()).enumerate() {
+            let got = normalise(got_raw);
+            assert_eq!(got, exp, "mismatch at {i}: got {got}, expected {exp}");
         }
     }
 }

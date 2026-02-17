@@ -1,19 +1,12 @@
-//! Deterministic sampling routines.
-//!
-//! - [`cbd2`] / [`cbd3`]: Centered Binomial Distribution noise sampling.
-//! - [`rej_uniform`]: Rejection-uniform coefficient sampling from XOF output.
+//! Deterministic sampling: CBD noise ([`cbd2`], [`cbd3`]) and rejection-uniform ([`rej_uniform`]).
 
 use crate::params::{N, Q};
 use sha3::digest::XofReader;
 
-/// SHAKE-128 output rate in bytes (one Keccak-f\[1600\] squeeze).
+/// SHAKE-128 output rate in bytes (one Keccak-f[1600] squeeze).
 pub const SHAKE128_RATE: usize = 168;
 
-// ---------------------------------------------------------------------------
-// Centered Binomial Distribution
-// ---------------------------------------------------------------------------
-
-/// CBD with η = 2: 128 bytes of PRF output → 256 coefficients in {−2, …, 2}.
+/// CBD with eta=2: 128 bytes of PRF output -> 256 coefficients in {-2, ..., 2}.
 pub fn cbd2(r: &mut [i16; N], buf: &[u8]) {
     debug_assert!(buf.len() >= 2 * N / 4); // 128 bytes
     for i in 0..N / 8 {
@@ -27,7 +20,7 @@ pub fn cbd2(r: &mut [i16; N], buf: &[u8]) {
     }
 }
 
-/// CBD with η = 3: 192 bytes of PRF output → 256 coefficients in {−3, …, 3}.
+/// CBD with eta=3: 192 bytes of PRF output -> 256 coefficients in {-3, ..., 3}.
 pub fn cbd3(r: &mut [i16; N], buf: &[u8]) {
     debug_assert!(buf.len() >= 3 * N / 4); // 192 bytes
     for i in 0..N / 4 {
@@ -41,14 +34,7 @@ pub fn cbd3(r: &mut [i16; N], buf: &[u8]) {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Rejection-uniform sampling (matrix generation)
-// ---------------------------------------------------------------------------
-
-/// Rejection-sample `N` uniformly random coefficients in `[0, q)` from a
-/// SHAKE-128 XOF reader, processing one 168-byte block at a time.
-///
-/// Always fills exactly `N` = 256 coefficients and returns `N`.
+/// Rejection-sample N uniformly random coefficients in [0, q) from SHAKE-128 XOF. Returns N.
 pub fn rej_uniform(r: &mut [i16; N], xof: &mut impl XofReader) -> usize {
     let mut ctr = 0;
     let mut buf = [0u8; SHAKE128_RATE];
@@ -72,10 +58,6 @@ pub fn rej_uniform(r: &mut [i16; N], xof: &mut impl XofReader) -> usize {
     }
     ctr
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
@@ -106,7 +88,7 @@ mod tests {
         let buf = [0u8; 128];
         let mut r = [99i16; N];
         cbd2(&mut r, &buf);
-        // All-zero PRF output ⇒ a = b = 0 ⇒ all coefficients zero.
+        // All-zero PRF output -> a = b = 0 -> all coefficients zero.
         assert!(r.iter().all(|&c| c == 0));
     }
 

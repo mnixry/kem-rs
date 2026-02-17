@@ -107,10 +107,7 @@ fn hex_upper(bytes: &[u8]) -> String {
 /// SHA-256 hash of the formatted transcript.
 fn run_nist_kat_case<P: MlKemParams>() -> String {
     // Step 1: Init DRBG with entropy_input[i] = i
-    let mut entropy = [0u8; 48];
-    for i in 0..48 {
-        entropy[i] = i as u8;
-    }
+    let entropy: [u8; 48] = core::array::from_fn(|i| i as u8);
     let mut drbg = NistDrbg::new(&entropy, None);
 
     // Step 2: Draw 48-byte seed

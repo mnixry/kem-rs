@@ -1,19 +1,6 @@
-//! Constant-time comparison and conditional-move helpers.
-//!
-//! These mirror the `verify` / `cmov` functions from FIPS 203 §4.3
-//! and the PQClean `verify.h`, expressed in safe Rust.
-//!
-//! All operations avoid secret-dependent branching. [`core::hint::black_box`]
-//! is used as an optimiser fence to discourage the compiler from converting
-//! data-dependent arithmetic into branches.
+//! Constant-time comparison and conditional-move (verify/cmov). No secret-dependent branching.
 
-/// Constant-time byte-slice comparison.
-///
-/// Returns `0` if `a == b` (element-wise), `1` otherwise.
-/// Both slices must have the same length.
-///
-/// Runs in time proportional to `a.len()` regardless of where (or whether)
-/// the slices differ.
+/// Constant-time byte-slice comparison. Returns 0 if a == b, 1 otherwise. Same length required.
 #[inline]
 pub fn ct_verify(a: &[u8], b: &[u8]) -> u8 {
     assert_eq!(a.len(), b.len(), "ct_verify: length mismatch");
@@ -24,19 +11,11 @@ pub fn ct_verify(a: &[u8], b: &[u8]) -> u8 {
     }
     // Fence: prevent the optimiser from short-circuiting the loop.
     let diff = core::hint::black_box(diff);
-    // Map 0 → 0, nonzero → 1 without branching.
+    // Map 0 -> 0, nonzero -> 1 without branching.
     (diff.wrapping_neg() >> 63) as u8
 }
 
-/// Constant-time conditional copy.
-///
-/// If `condition == 1`, overwrites `dst` with the contents of `src`.
-/// If `condition == 0`, `dst` is left unchanged.
-///
-/// # Panics
-///
-/// Panics (debug-only) if `condition` is not 0 or 1, or if slice lengths
-/// differ.
+/// Constant-time conditional copy. If condition==1 overwrites dst with src; if 0, dst unchanged. Panics if condition not 0/1 or lengths differ.
 #[inline]
 pub fn ct_cmov(dst: &mut [u8], src: &[u8], condition: u8) {
     assert_eq!(dst.len(), src.len(), "ct_cmov: length mismatch");
@@ -49,10 +28,6 @@ pub fn ct_cmov(dst: &mut [u8], src: &[u8], condition: u8) {
         *d ^= mask & (*d ^ s);
     }
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {

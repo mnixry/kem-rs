@@ -1,9 +1,4 @@
-//! IND-CCA2 Key Encapsulation Mechanism — ML-KEM (FIPS 203).
-//!
-//! Public API:
-//! - [`keypair_derand`] / [`keypair`] — generate an encapsulation key pair.
-//! - [`encapsulate_derand`] / [`encapsulate`] — produce ciphertext + shared secret.
-//! - [`decapsulate`] — recover the shared secret (or implicit-reject).
+//! IND-CCA2 Key Encapsulation - ML-KEM (FIPS 203). Keygen, encapsulate, decapsulate.
 
 use crate::ct;
 use crate::hash;
@@ -11,14 +6,7 @@ use crate::params::{ByteArray, MlKemParams, SYMBYTES};
 use crate::pke;
 use crate::types::{Ciphertext, PublicKey, SecretKey, SharedSecret};
 
-// ---------------------------------------------------------------------------
-// Key generation
-// ---------------------------------------------------------------------------
-
-/// Deterministic key generation from 64 bytes of randomness.
-///
-/// `coins` = `(d ‖ z)` where `d` seeds the IND-CPA keypair and
-/// `z` is stored for implicit rejection during decapsulation.
+/// Deterministic key generation from 64 bytes of randomness. coins = (d || z): d seeds IND-CPA keypair, z for implicit reject.
 pub fn keypair_derand<P: MlKemParams>(coins: &[u8; 2 * SYMBYTES]) -> (PublicKey<P>, SecretKey<P>) {
     let mut pk_arr = P::PkArray::zeroed();
     let mut sk_arr = P::SkArray::zeroed();
@@ -33,7 +21,7 @@ pub fn keypair_derand<P: MlKemParams>(coins: &[u8; 2 * SYMBYTES]) -> (PublicKey<
         coins[..SYMBYTES].try_into().unwrap(),
     );
 
-    // sk = (indcpa_sk ‖ pk ‖ H(pk) ‖ z)
+    // sk = (indcpa_sk || pk || H(pk) || z)
     sk[P::INDCPA_SK_BYTES..P::INDCPA_SK_BYTES + P::PK_BYTES]
         .copy_from_slice(&pk[..P::PK_BYTES]);
 
@@ -55,26 +43,20 @@ pub fn keypair<P: MlKemParams>(rng: &mut impl rand_core::CryptoRng) -> (PublicKe
     keypair_derand::<P>(&coins)
 }
 
-// ---------------------------------------------------------------------------
-// Encapsulation
-// ---------------------------------------------------------------------------
-
-/// Deterministic encapsulation from 32 bytes of randomness.
-///
-/// Produces a ciphertext and the shared secret, given the public key.
+/// Deterministic encapsulation from 32 bytes of randomness. Produces ciphertext and shared secret.
 pub fn encapsulate_derand<P: MlKemParams>(
     pk: &PublicKey<P>,
     coins: &[u8; SYMBYTES],
 ) -> (Ciphertext<P>, SharedSecret) {
     let mut ct_arr = P::CtArray::zeroed();
 
-    // buf = m ‖ H(pk)
+    // buf = m || H(pk)
     let mut buf = [0u8; 2 * SYMBYTES];
     buf[..SYMBYTES].copy_from_slice(coins);
     let h_pk = hash::hash_h(pk.as_bytes());
     buf[SYMBYTES..].copy_from_slice(&h_pk);
 
-    // kr = G(buf) = (K ‖ r)
+    // kr = G(buf) = (K || r)
     let kr = hash::hash_g(&buf);
 
     // IND-CPA encrypt: ct = Enc(pk, m; r)
@@ -102,20 +84,12 @@ pub fn encapsulate<P: MlKemParams>(
     encapsulate_derand::<P>(pk, &coins)
 }
 
-// ---------------------------------------------------------------------------
-// Decapsulation
-// ---------------------------------------------------------------------------
-
-/// Decapsulate: recover the shared secret from a ciphertext and secret key.
-///
-/// Uses implicit rejection — on failure, produces a pseudorandom
-/// shared secret derived from the secret key and ciphertext, preventing
-/// an oracle.
+/// Decapsulate: recover shared secret. Uses implicit rejection on failure (pseudorandom ss from sk, ct).
 pub fn decapsulate<P: MlKemParams>(ct: &Ciphertext<P>, sk: &SecretKey<P>) -> SharedSecret {
     let sk_bytes = sk.as_bytes();
     let ct_bytes = ct.as_bytes();
 
-    // Parse the secret key: (indcpa_sk ‖ pk ‖ H(pk) ‖ z)
+    // Parse the secret key: (indcpa_sk || pk || H(pk) || z)
     let indcpa_sk = &sk_bytes[..P::INDCPA_SK_BYTES];
     let pk_bytes = &sk_bytes[P::INDCPA_SK_BYTES..P::INDCPA_SK_BYTES + P::PK_BYTES];
     let h_pk = &sk_bytes[P::SK_BYTES - 2 * SYMBYTES..P::SK_BYTES - SYMBYTES];
@@ -125,12 +99,12 @@ pub fn decapsulate<P: MlKemParams>(ct: &Ciphertext<P>, sk: &SecretKey<P>) -> Sha
     let mut m_prime = [0u8; SYMBYTES];
     pke::indcpa_dec::<P>(&mut m_prime, ct_bytes, indcpa_sk);
 
-    // buf = m' ‖ H(pk)
+    // buf = m' || H(pk)
     let mut buf = [0u8; 2 * SYMBYTES];
     buf[..SYMBYTES].copy_from_slice(&m_prime);
     buf[SYMBYTES..].copy_from_slice(h_pk);
 
-    // kr = G(buf) = (K' ‖ r')
+    // kr = G(buf) = (K' || r')
     let kr = hash::hash_g(&buf);
 
     // Re-encrypt: ct' = Enc(pk, m'; r')
@@ -144,10 +118,10 @@ pub fn decapsulate<P: MlKemParams>(ct: &Ciphertext<P>, sk: &SecretKey<P>) -> Sha
         kr[SYMBYTES..].try_into().unwrap(),
     );
 
-    // Constant-time comparison: fail = (ct ≠ ct')
+    // Constant-time comparison: fail = (ct != ct')
     let fail = ct::ct_verify(ct_bytes, &cmp[..P::CT_BYTES]);
 
-    // Implicit rejection: ss = J(z, ct) if fail, else K'
+    // Implicit rejection: ss = J(z, ct) if fail else K'
     let z: &[u8; SYMBYTES] = z.try_into().unwrap();
     let rejection_ss = hash::rkprf(z, ct_bytes);
 

@@ -1,15 +1,7 @@
-//! Key, ciphertext, and shared-secret newtypes with RAII zeroization.
-//!
-//! Secret-bearing types ([`SecretKey`], [`SharedSecret`]) implement
-//! [`Zeroize`](zeroize::Zeroize) and [`ZeroizeOnDrop`](zeroize::ZeroizeOnDrop)
-//! so that key material is scrubbed when values leave scope.
+//! Key, ciphertext, and shared-secret newtypes with RAII zeroization. Secret types zeroize on drop.
 
 use crate::params::{MlKemParams, SSBYTES};
 use zeroize::{Zeroize, ZeroizeOnDrop};
-
-// ---------------------------------------------------------------------------
-// PublicKey
-// ---------------------------------------------------------------------------
 
 /// ML-KEM public (encapsulation) key.
 pub struct PublicKey<P: MlKemParams> {
@@ -58,10 +50,6 @@ impl<P: MlKemParams> core::fmt::Debug for PublicKey<P> {
             .finish_non_exhaustive()
     }
 }
-
-// ---------------------------------------------------------------------------
-// SecretKey
-// ---------------------------------------------------------------------------
 
 /// ML-KEM secret (decapsulation) key. Zeroized on drop.
 pub struct SecretKey<P: MlKemParams> {
@@ -115,10 +103,6 @@ impl<P: MlKemParams> core::fmt::Debug for SecretKey<P> {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Ciphertext
-// ---------------------------------------------------------------------------
-
 /// ML-KEM ciphertext.
 pub struct Ciphertext<P: MlKemParams> {
     pub(crate) bytes: P::CtArray,
@@ -166,10 +150,6 @@ impl<P: MlKemParams> core::fmt::Debug for Ciphertext<P> {
             .finish_non_exhaustive()
     }
 }
-
-// ---------------------------------------------------------------------------
-// SharedSecret
-// ---------------------------------------------------------------------------
 
 /// Shared secret (always 32 bytes). Zeroized on drop.
 #[derive(Clone, Zeroize, ZeroizeOnDrop)]
