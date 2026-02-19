@@ -1,0 +1,5 @@
+[target.'cfg(unix)']
+rustflags = ["-C", "target-cpu=native"]
+
+[unstable]
+build-std = ["core", "std", "alloc"]
