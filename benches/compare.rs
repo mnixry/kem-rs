@@ -69,6 +69,11 @@ fn bench_param_set<P: kem_rs::MlKemParams, RC: KemCore>(c: &mut Criterion, tag: 
 }
 
 fn compare_benches(c: &mut Criterion) {
+    let core_id = core_affinity::get_core_ids()
+        .and_then(|ids| ids.first().copied())
+        .expect("no core ids found");
+    core_affinity::set_for_current(core_id);
+    println!("Running benchmarks on core {core_id:?}");
     bench_param_set::<kem_rs::MlKem512, ml_kem::MlKem512>(c, 1);
     bench_param_set::<kem_rs::MlKem768, ml_kem::MlKem768>(c, 2);
     bench_param_set::<kem_rs::MlKem1024, ml_kem::MlKem1024>(c, 3);
