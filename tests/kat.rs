@@ -111,15 +111,15 @@ fn run_nist_kat_case<P: MlKemParams>() -> String {
     drbg.fill_bytes(&mut enc_coins);
     let (ct, ss_enc) = encapsulate_derand::<P>(&pk, &enc_coins);
     let ss_dec = decapsulate::<P>(&ct, &sk);
-    assert_eq!(ss_enc.as_bytes(), ss_dec.as_bytes());
+    assert_eq!(ss_enc.as_ref(), ss_dec.as_ref());
 
     let mut transcript = String::new();
     transcript.push_str("count = 0\n");
     transcript.push_str(&format!("seed = {}\n", hex_upper(&seed)));
-    transcript.push_str(&format!("pk = {}\n", hex_upper(pk.as_bytes())));
-    transcript.push_str(&format!("sk = {}\n", hex_upper(sk.as_bytes())));
-    transcript.push_str(&format!("ct = {}\n", hex_upper(ct.as_bytes())));
-    transcript.push_str(&format!("ss = {}\n", hex_upper(ss_enc.as_bytes())));
+    transcript.push_str(&format!("pk = {}\n", hex_upper(pk.as_ref())));
+    transcript.push_str(&format!("sk = {}\n", hex_upper(sk.as_ref())));
+    transcript.push_str(&format!("ct = {}\n", hex_upper(ct.as_ref())));
+    transcript.push_str(&format!("ss = {}\n", hex_upper(ss_enc.as_ref())));
 
     let mut hasher = Sha256::new();
     hasher.update(transcript.as_bytes());

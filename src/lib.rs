@@ -14,7 +14,6 @@
 #![feature(portable_simd)]
 #![deny(unsafe_code)]
 
-pub mod ct;
 pub mod hash;
 pub mod kem;
 pub mod math;

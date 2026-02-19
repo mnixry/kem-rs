@@ -10,23 +10,22 @@ pub struct PublicKey<P: MlKemParams> {
     pub(crate) bytes: P::PkArray,
 }
 
-impl<P: MlKemParams> PublicKey<P> {
-    /// Wrap an existing byte array as a public key.
+impl<P, const SIZE: usize> From<[u8; SIZE]> for PublicKey<P>
+where
+    P: MlKemParams<PkArray = [u8; SIZE]>,
+{
     #[inline]
-    pub fn from_bytes(bytes: P::PkArray) -> Self {
+    fn from(bytes: [u8; SIZE]) -> Self {
         Self { bytes }
     }
+}
 
-    /// View the key as a byte slice.
+impl<P: MlKemParams> From<&P::PkArray> for PublicKey<P> {
     #[inline]
-    pub fn as_bytes(&self) -> &[u8] {
-        self.bytes.as_ref()
-    }
-
-    /// Consume the wrapper and return the inner byte array.
-    #[inline]
-    pub fn into_bytes(self) -> P::PkArray {
-        self.bytes
+    fn from(bytes: &P::PkArray) -> Self {
+        Self {
+            bytes: bytes.clone(),
+        }
     }
 }
 
@@ -54,21 +53,27 @@ impl<P: MlKemParams> core::fmt::Debug for PublicKey<P> {
 }
 
 /// ML-KEM secret (decapsulation) key. Zeroized on drop.
+#[derive(Zeroize, ZeroizeOnDrop)]
 pub struct SecretKey<P: MlKemParams> {
     pub(crate) bytes: P::SkArray,
 }
 
-impl<P: MlKemParams> SecretKey<P> {
-    /// Wrap an existing byte array as a secret key.
+impl<P, const SIZE: usize> From<[u8; SIZE]> for SecretKey<P>
+where
+    P: MlKemParams<SkArray = [u8; SIZE]>,
+{
     #[inline]
-    pub fn from_bytes(bytes: P::SkArray) -> Self {
+    fn from(bytes: [u8; SIZE]) -> Self {
         Self { bytes }
     }
+}
 
-    /// View the key as a byte slice.
+impl<P: MlKemParams> From<&P::SkArray> for SecretKey<P> {
     #[inline]
-    pub fn as_bytes(&self) -> &[u8] {
-        self.bytes.as_ref()
+    fn from(bytes: &P::SkArray) -> Self {
+        Self {
+            bytes: bytes.clone(),
+        }
     }
 }
 
@@ -87,18 +92,6 @@ impl<P: MlKemParams> Clone for SecretKey<P> {
     }
 }
 
-impl<P: MlKemParams> Zeroize for SecretKey<P> {
-    fn zeroize(&mut self) {
-        self.bytes.zeroize();
-    }
-}
-
-impl<P: MlKemParams> Drop for SecretKey<P> {
-    fn drop(&mut self) {
-        self.zeroize();
-    }
-}
-
 impl<P: MlKemParams> core::fmt::Debug for SecretKey<P> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str("SecretKey([REDACTED])")
@@ -110,23 +103,22 @@ pub struct Ciphertext<P: MlKemParams> {
     pub(crate) bytes: P::CtArray,
 }
 
-impl<P: MlKemParams> Ciphertext<P> {
-    /// Wrap an existing byte array as a ciphertext.
+impl<P, const SIZE: usize> From<[u8; SIZE]> for Ciphertext<P>
+where
+    P: MlKemParams<CtArray = [u8; SIZE]>,
+{
     #[inline]
-    pub fn from_bytes(bytes: P::CtArray) -> Self {
+    fn from(bytes: [u8; SIZE]) -> Self {
         Self { bytes }
     }
+}
 
-    /// View the ciphertext as a byte slice.
+impl<P: MlKemParams> From<&P::CtArray> for Ciphertext<P> {
     #[inline]
-    pub fn as_bytes(&self) -> &[u8] {
-        self.bytes.as_ref()
-    }
-
-    /// Consume the wrapper and return the inner byte array.
-    #[inline]
-    pub fn into_bytes(self) -> P::CtArray {
-        self.bytes
+    fn from(bytes: &P::CtArray) -> Self {
+        Self {
+            bytes: bytes.clone(),
+        }
     }
 }
 
@@ -159,17 +151,10 @@ pub struct SharedSecret {
     pub(crate) bytes: [u8; SSBYTES],
 }
 
-impl SharedSecret {
-    /// Wrap a raw 32-byte array as a shared secret.
+impl From<[u8; SSBYTES]> for SharedSecret {
     #[inline]
-    pub fn from_bytes(bytes: [u8; SSBYTES]) -> Self {
+    fn from(bytes: [u8; SSBYTES]) -> Self {
         Self { bytes }
-    }
-
-    /// View the secret as a byte slice.
-    #[inline]
-    pub fn as_bytes(&self) -> &[u8] {
-        &self.bytes
     }
 }
 

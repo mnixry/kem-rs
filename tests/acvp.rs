@@ -198,28 +198,28 @@ fn run_keygen_case<P: MlKemParams>(
     coins[SYMBYTES..].copy_from_slice(z);
 
     let (ek, dk) = keypair_derand::<P>(&coins);
-    assert_eq!(ek.as_bytes(), expected_ek);
-    assert_eq!(dk.as_bytes(), expected_dk);
+    assert_eq!(ek.as_ref(), expected_ek);
+    assert_eq!(dk.as_ref(), expected_dk);
 }
 
 fn run_encapsulation_case<P: MlKemParams>(
     ek: &[u8], m: &[u8; SYMBYTES], expected_c: &[u8], expected_k: &[u8; SYMBYTES],
 ) {
     let ek_arr = to_byte_array::<P::PkArray>(ek, P::PK_BYTES);
-    let ek = PublicKey::<P>::from_bytes(ek_arr);
+    let ek = PublicKey::<P>::from(&ek_arr);
 
     let (c, k) = encapsulate_derand::<P>(&ek, m);
-    assert_eq!(c.as_bytes(), expected_c);
-    assert_eq!(k.as_bytes(), expected_k);
+    assert_eq!(c.as_ref(), expected_c);
+    assert_eq!(k.as_ref(), expected_k);
 }
 
 fn run_decapsulation_case<P: MlKemParams>(dk: &[u8], c: &[u8], expected_k: &[u8; SYMBYTES]) {
     let dk_arr = to_byte_array::<P::SkArray>(dk, P::SK_BYTES);
     let c_arr = to_byte_array::<P::CtArray>(c, P::CT_BYTES);
-    let dk = SecretKey::<P>::from_bytes(dk_arr);
-    let c = Ciphertext::<P>::from_bytes(c_arr);
+    let dk = SecretKey::<P>::from(&dk_arr);
+    let c = Ciphertext::<P>::from(&c_arr);
     let k = decapsulate::<P>(&c, &dk);
-    assert_eq!(k.as_bytes(), expected_k);
+    assert_eq!(k.as_ref(), expected_k);
 }
 
 fn encapsulation_key_check<P: MlKemParams>(ek: &[u8]) -> bool {
