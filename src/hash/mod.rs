@@ -15,50 +15,43 @@ use sha3::{
     digest::{ExtendableOutput, Update, XofReader},
 };
 
-use crate::params::{SSBYTES, SYMBYTES};
+use crate::params::SSBYTES;
 
 /// H(input) = SHA3-256(input) -> 32 bytes.
 #[inline]
-pub fn hash_h(input: &[u8]) -> [u8; 32] {
-    let mut h = Sha3_256::new();
-    Digest::update(&mut h, input);
-    h.finalize().into()
+pub fn hash_h(input: impl AsRef<[u8]>) -> [u8; 32] {
+    Sha3_256::digest(input).into()
 }
 
 /// G(input) = SHA3-512(input) -> 64 bytes.
 #[inline]
-pub fn hash_g(input: &[u8]) -> [u8; 64] {
-    let mut h = Sha3_512::new();
-    Digest::update(&mut h, input);
-    h.finalize().into()
+pub fn hash_g(input: impl AsRef<[u8]>) -> [u8; 64] {
+    Sha3_512::digest(input).into()
 }
 
 /// PRF_eta(seed, nonce) = SHAKE-256(seed || nonce), squeezed to fill output.
-pub fn prf(seed: &[u8; SYMBYTES], nonce: u8, output: &mut [u8]) {
-    let mut h = Shake256::default();
-    Update::update(&mut h, seed);
-    Update::update(&mut h, &[nonce]);
-    let mut reader = h.finalize_xof();
-    reader.read(output);
+pub fn prf(seed: impl AsRef<[u8]>, nonce: u8, output: &mut [u8]) {
+    Shake256::default()
+        .chain(seed)
+        .chain([nonce])
+        .finalize_xof()
+        .read(output);
 }
 
 /// SHAKE-128 XOF absorber for matrix sampling. Absorbs seed || x || y, returns
 /// reader for uniform bytes.
-pub fn xof_absorb(seed: &[u8; SYMBYTES], x: u8, y: u8) -> impl XofReader {
-    let mut h = Shake128::default();
-    Update::update(&mut h, seed);
-    Update::update(&mut h, &[x, y]);
-    h.finalize_xof()
+pub fn xof_absorb(seed: impl AsRef<[u8]>, x: u8, y: u8) -> impl XofReader {
+    Shake128::default().chain(seed).chain([x, y]).finalize_xof()
 }
 
 /// J(key, ct) = SHAKE-256(key || ct) -> 32 bytes. Rejection-key PRF for
 /// implicit reject.
-pub fn rkprf(key: &[u8; SYMBYTES], ct: &[u8]) -> [u8; SSBYTES] {
-    let mut h = Shake256::default();
-    Update::update(&mut h, key);
-    Update::update(&mut h, ct);
-    let mut reader = h.finalize_xof();
+pub fn rkprf(key: impl AsRef<[u8]>, ct: impl AsRef<[u8]>) -> [u8; SSBYTES] {
     let mut out = [0u8; SSBYTES];
-    reader.read(&mut out);
+    Shake256::default()
+        .chain(key)
+        .chain(ct)
+        .finalize_xof()
+        .read(&mut out);
     out
 }

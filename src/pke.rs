@@ -42,7 +42,7 @@ fn indcpa_keypair_inner<P: MlKemParams, const K: usize>(
     let mut g_input = [0u8; SYMBYTES + 1];
     g_input[..SYMBYTES].copy_from_slice(coins);
     g_input[SYMBYTES] = K as u8;
-    let buf = hash::hash_g(&g_input);
+    let buf = hash::hash_g(g_input);
     let public_seed: [u8; SYMBYTES] = buf[..SYMBYTES].try_into().unwrap();
     let noise_seed: [u8; SYMBYTES] = buf[SYMBYTES..].try_into().unwrap();
 
@@ -194,7 +194,7 @@ mod tests {
         let mut g_input = [0u8; SYMBYTES + 1];
         g_input[..SYMBYTES].copy_from_slice(&coins);
         g_input[SYMBYTES] = K as u8;
-        let buf = hash::hash_g(&g_input);
+        let buf = hash::hash_g(g_input);
         let public_seed: [u8; SYMBYTES] = buf[..SYMBYTES].try_into().unwrap();
         let noise_seed: [u8; SYMBYTES] = buf[SYMBYTES..].try_into().unwrap();
 
@@ -322,7 +322,7 @@ mod tests {
         let mut g_input = [0u8; SYMBYTES + 1];
         g_input[..SYMBYTES].copy_from_slice(&coins);
         g_input[SYMBYTES] = K as u8;
-        let buf = hash::hash_g(&g_input);
+        let buf = hash::hash_g(g_input);
         let public_seed: [u8; SYMBYTES] = buf[..SYMBYTES].try_into().unwrap();
         let noise_seed: [u8; SYMBYTES] = buf[SYMBYTES..].try_into().unwrap();
 

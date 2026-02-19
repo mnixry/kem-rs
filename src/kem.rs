@@ -60,7 +60,7 @@ pub fn encapsulate_derand<P: MlKemParams>(
     buf[SYMBYTES..].copy_from_slice(&h_pk);
 
     // kr = G(buf) = (K || r)
-    let kr = hash::hash_g(&buf);
+    let kr = hash::hash_g(buf);
 
     // IND-CPA encrypt: ct = Enc(pk, m; r)
     pke::indcpa_enc::<P>(
@@ -108,7 +108,7 @@ pub fn decapsulate<P: MlKemParams>(ct: &Ciphertext<P>, sk: &SecretKey<P>) -> Sha
     buf[SYMBYTES..].copy_from_slice(h_pk);
 
     // kr = G(buf) = (K' || r')
-    let kr = hash::hash_g(&buf);
+    let kr = hash::hash_g(buf);
 
     // Re-encrypt: ct' = Enc(pk, m'; r')
     // Use a stack buffer large enough for any parameter set.
