@@ -1,22 +1,11 @@
 //! ML-KEM parameter definitions. MlKemParams trait and marker types MlKem512,
 //! MlKem768, MlKem1024.
 
+pub use kem_math::{N, POLYBYTES, Q, SYMBYTES};
 use zeroize::Zeroize;
-
-/// Polynomial ring degree.
-pub const N: usize = 256;
-
-/// Field modulus.
-pub const Q: i16 = 3329;
-
-/// Size in bytes of hashes, seeds, and shared secrets.
-pub const SYMBYTES: usize = 32;
 
 /// Size in bytes of the shared-secret output.
 pub const SSBYTES: usize = 32;
-
-/// Size in bytes of a serialised polynomial (12 bits * 256 / 8).
-pub const POLYBYTES: usize = 384;
 
 /// Fixed-size byte buffer usable as an ML-KEM key/ciphertext backing store.
 pub trait ByteArray:

@@ -1,11 +1,12 @@
 //! Byte-level packing, unpacking, compression, and decompression on raw
 //! coefficient slices.
 
-use crate::params::{N, POLYBYTES, Q, SYMBYTES};
+use crate::{N, POLYBYTES, Q, SYMBYTES};
 
 /// Conditionally add q to make a coefficient non-negative.
 #[inline]
-pub(crate) fn csubq(a: i16) -> u16 {
+#[must_use]
+pub const fn csubq(a: i16) -> u16 {
     let mut t = a as u16;
     t = t.wrapping_add(((a >> 15) as u16) & (Q as u16));
     t
@@ -15,14 +16,14 @@ pub(crate) fn csubq(a: i16) -> u16 {
 ///
 /// Input `x` must be in `[0, q)`.
 #[inline]
-fn compress(x: u16, d: u32) -> u16 {
+const fn compress(x: u16, d: u32) -> u16 {
     let t = ((x as u32) << d).wrapping_add((Q as u32) / 2) / (Q as u32);
     (t & ((1u32 << d) - 1)) as u16
 }
 
 /// Decompress `d`-bit value: `round((q / 2^d) * y)`.
 #[inline]
-fn decompress(y: u16, d: u32) -> u16 {
+const fn decompress(y: u16, d: u32) -> u16 {
     (((y as u32) * (Q as u32) + (1u32 << (d - 1))) >> d) as u16
 }
 
@@ -65,9 +66,7 @@ pub fn poly_tomsg(msg: &mut [u8; SYMBYTES], a: &[i16; N]) {
         msg[i] = 0;
         for j in 0..8u32 {
             let mut t = a[8 * i + j as usize] as u32;
-            // Make non-negative
             t = t.wrapping_add(((t as i16 >> 15) as u32) & (Q as u32));
-            // Compress to 1 bit
             t = (((t << 1) + (Q as u32) / 2) / (Q as u32)) & 1;
             msg[i] |= (t as u8) << j;
         }
@@ -233,7 +232,6 @@ mod tests {
         let mut b = [0i16; N];
         poly_decompress_d4(&mut b, &buf);
 
-        // Compression is lossy; check round-trip error is bounded
         for (i, (&ai, &bi)) in a.iter().zip(b.iter()).enumerate() {
             let original = csubq(ai) as i32;
             let recovered = bi as i32;

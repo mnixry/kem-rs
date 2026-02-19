@@ -11,18 +11,16 @@
 //! - **RAII zeroization** of secret material via the `zeroize` crate.
 //! - **Constant-time** operations for secret-dependent comparisons and moves.
 
-#![feature(portable_simd)]
 #![deny(unsafe_code)]
 
 pub mod hash;
 pub mod kem;
-pub mod math;
 pub mod params;
 pub mod pke;
-pub mod simd;
 pub mod types;
 
 // Re-export the public API surface.
 pub use kem::{decapsulate, encapsulate, encapsulate_derand, keypair, keypair_derand};
+pub use kem_math as math;
 pub use params::{MlKem512, MlKem768, MlKem1024, MlKemParams};
 pub use types::{Ciphertext, PublicKey, SecretKey, SharedSecret};

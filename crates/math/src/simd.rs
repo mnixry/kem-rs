@@ -7,15 +7,12 @@
 //! Default lane count: `DEFAULT_LANES = 16` (256-bit i16 vectors).
 //! Use `_lanes::<L>` variants to override.
 //!
-//! Reference: PQClean ml-kem-768/avx2 -- `vpmullw`/`vpmulhw` for Montgomery
+//! Reference: `PQClean` ml-kem-768/avx2 -- `vpmullw`/`vpmulhw` for Montgomery
 //! multiply, `vpaddw`/`vpsubw` for NTT butterfly add/sub.
 
-use std::simd::{Simd, prelude::*};
+use core::simd::{Simd, prelude::*};
 
-use crate::{
-    math::reduce::QINV,
-    params::{N, Q},
-};
+use crate::{N, Q, reduce::QINV};
 
 /// 16 x i16 = 256-bit default. Matches SSE4 / NEON register width.
 pub const DEFAULT_LANES: usize = 16;
@@ -24,8 +21,8 @@ pub const DEFAULT_LANES: usize = 16;
 
 /// Barrett reduction: `r \equiv a \pmod{q}`, centered `|r| <= q/2`.
 #[inline]
+#[must_use]
 pub fn barrett_reduce_vec<const L: usize>(a: Simd<i16, L>) -> Simd<i16, L> {
-    // t = round(V * a / 2^{26}), V = round(2^{26} / q) = 20159
     const V: i32 = 20159;
     let aw: Simd<i32, L> = a.cast();
     let t =
@@ -35,11 +32,11 @@ pub fn barrett_reduce_vec<const L: usize>(a: Simd<i16, L>) -> Simd<i16, L> {
 
 /// Montgomery reduction: `a * R^{-1} mod q`, `R = 2^{16}`.
 #[inline]
+#[must_use]
 pub fn montgomery_reduce_vec<const L: usize>(a: Simd<i32, L>) -> Simd<i16, L> {
     let qinv = Simd::<i32, L>::splat(QINV as i32);
     let q = Simd::<i32, L>::splat(Q as i32);
     let s16 = Simd::splat(16);
-    // t = (a as i16).wrapping_mul(QINV), sign-extended to i32
     let a_lo = (a << s16) >> s16;
     let t = ((a_lo * qinv) << s16) >> s16;
     ((a - t * q) >> s16).cast::<i16>()
@@ -47,6 +44,7 @@ pub fn montgomery_reduce_vec<const L: usize>(a: Simd<i32, L>) -> Simd<i16, L> {
 
 /// Field multiply: `a * b * R^{-1} mod q`.
 #[inline]
+#[must_use]
 pub fn fqmul_vec<const L: usize>(a: Simd<i16, L>, b: Simd<i16, L>) -> Simd<i16, L> {
     montgomery_reduce_vec(a.cast::<i32>() * b.cast::<i32>())
 }
@@ -168,7 +166,7 @@ pub fn butterfly_fwd_lanes<const L: usize>(lo: &mut [i16], hi: &mut [i16], zeta:
         (a - t).copy_to_slice(&mut hi[i..]);
     }
     for i in simd_end..n {
-        let t = crate::math::reduce::fqmul(zeta, hi[i]);
+        let t = crate::reduce::fqmul(zeta, hi[i]);
         hi[i] = lo[i] - t;
         lo[i] += t;
     }
@@ -195,15 +193,15 @@ pub fn butterfly_inv_lanes<const L: usize>(lo: &mut [i16], hi: &mut [i16], zeta:
     }
     for i in simd_end..n {
         let t = lo[i];
-        lo[i] = crate::math::reduce::barrett_reduce(t + hi[i]);
-        hi[i] = crate::math::reduce::fqmul(zeta, hi[i] - t);
+        lo[i] = crate::reduce::barrett_reduce(t + hi[i]);
+        hi[i] = crate::reduce::fqmul(zeta, hi[i] - t);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::math::reduce;
+    use crate::reduce;
 
     #[test]
     fn simd_barrett_matches_scalar() {
@@ -211,14 +209,17 @@ mod tests {
         for (i, c) in data.iter_mut().enumerate() {
             *c = (i as i16 * 37) - 1000;
         }
-        let expected: Vec<i16> = data.iter().map(|&c| reduce::barrett_reduce(c)).collect();
+        let mut expected = [0i16; N];
+        for (e, &c) in expected.iter_mut().zip(data.iter()) {
+            *e = reduce::barrett_reduce(c);
+        }
         poly_reduce(&mut data);
-        assert_eq!(&data[..], &expected[..]);
+        assert_eq!(data, expected);
     }
 
     #[test]
     fn simd_montgomery_matches_scalar() {
-        for val in [-100000i32, -1, 0, 1, 50000, 100000] {
+        for val in [-100_000_i32, -1, 0, 1, 50_000, 100_000] {
             let v = Simd::<i32, DEFAULT_LANES>::splat(val);
             let result = montgomery_reduce_vec(v);
             let expected = reduce::montgomery_reduce(val);
@@ -238,35 +239,34 @@ mod tests {
             a[i] = (i as i16 * 13) - 500;
             b[i] = (i as i16 * 7) + 100;
         }
-        let expected: Vec<i16> = a
-            .iter()
-            .zip(b.iter())
-            .map(|(&x, &y)| reduce::fqmul(x, y))
-            .collect();
+        let mut expected = [0i16; N];
+        for i in 0..N {
+            expected[i] = reduce::fqmul(a[i], b[i]);
+        }
         let mut result = [0i16; N];
         for i in (0..N).step_by(DEFAULT_LANES) {
             let va = Simd::<i16, DEFAULT_LANES>::from_slice(&a[i..]);
             let vb = Simd::<i16, DEFAULT_LANES>::from_slice(&b[i..]);
             fqmul_vec(va, vb).copy_to_slice(&mut result[i..]);
         }
-        assert_eq!(&result[..], &expected[..]);
+        assert_eq!(result, expected);
     }
 
     #[test]
     fn simd_butterfly_fwd_matches_scalar() {
-        let n = 32;
-        let mut lo_s = vec![0i16; n];
-        let mut hi_s = vec![0i16; n];
-        for i in 0..n {
+        const M: usize = 32;
+        let mut lo_s = [0i16; M];
+        let mut hi_s = [0i16; M];
+        for i in 0..M {
             lo_s[i] = (i as i16) * 13;
             hi_s[i] = (i as i16) * 7 + 100;
         }
-        let mut lo_v = lo_s.clone();
-        let mut hi_v = hi_s.clone();
+        let mut lo_v = lo_s;
+        let mut hi_v = hi_s;
         let zeta = 1234i16;
 
         butterfly_fwd(&mut lo_v, &mut hi_v, zeta);
-        for i in 0..n {
+        for i in 0..M {
             let t = reduce::fqmul(zeta, hi_s[i]);
             hi_s[i] = lo_s[i] - t;
             lo_s[i] += t;
@@ -277,19 +277,19 @@ mod tests {
 
     #[test]
     fn simd_butterfly_inv_matches_scalar() {
-        let n = 32;
-        let mut lo_s = vec![0i16; n];
-        let mut hi_s = vec![0i16; n];
-        for i in 0..n {
+        const M: usize = 32;
+        let mut lo_s = [0i16; M];
+        let mut hi_s = [0i16; M];
+        for i in 0..M {
             lo_s[i] = (i as i16) * 11 - 200;
             hi_s[i] = (i as i16) * 5 + 50;
         }
-        let mut lo_v = lo_s.clone();
-        let mut hi_v = hi_s.clone();
+        let mut lo_v = lo_s;
+        let mut hi_v = hi_s;
         let zeta = -567i16;
 
         butterfly_inv(&mut lo_v, &mut hi_v, zeta);
-        for i in 0..n {
+        for i in 0..M {
             let t = lo_s[i];
             lo_s[i] = reduce::barrett_reduce(t + hi_s[i]);
             hi_s[i] = reduce::fqmul(zeta, hi_s[i] - t);

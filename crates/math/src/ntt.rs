@@ -5,7 +5,7 @@
 //! - `basemul`: degree-1 multiplication in the NTT domain.
 
 use super::reduce::fqmul;
-use crate::params::N;
+use crate::N;
 
 /// Twiddle factors in Montgomery form, from primitive 512th root zeta=17,
 /// bit-reversed indexing.
@@ -60,7 +60,7 @@ pub fn invntt(r: &mut [i16; N]) {
 /// Base multiply two degree-1 polys in `Z_q[X]/(X^2 - zeta)`.
 /// `r = a * b mod (X^2 - zeta)`.
 #[inline]
-pub fn basemul(r: &mut [i16; 2], a: &[i16; 2], b: &[i16; 2], zeta: i16) {
+pub const fn basemul(r: &mut [i16; 2], a: &[i16; 2], b: &[i16; 2], zeta: i16) {
     r[0] = fqmul(a[1], b[1]);
     r[0] = fqmul(r[0], zeta);
     r[0] += fqmul(a[0], b[0]);
@@ -71,7 +71,7 @@ pub fn basemul(r: &mut [i16; 2], a: &[i16; 2], b: &[i16; 2], zeta: i16) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::math::reduce::barrett_reduce;
+    use crate::reduce::barrett_reduce;
 
     #[test]
     fn ntt_invntt_roundtrip() {
@@ -85,7 +85,7 @@ mod tests {
         invntt(&mut a);
 
         // invntt(ntt(a))[i] = a[i] * R mod q; undo with fqmul(c, 1) = c * R^{-1}
-        for c in a.iter_mut() {
+        for c in &mut a {
             *c = barrett_reduce(fqmul(*c, 1));
         }
         for i in 0..N {
@@ -105,7 +105,7 @@ mod tests {
                 }
             }
         }
-        let q = crate::params::Q as i32;
+        let q = crate::Q as i32;
         let mut result = [0i16; N];
         for (r, &ci) in result.iter_mut().zip(c.iter()) {
             *r = (ci % q) as i16;
@@ -119,14 +119,14 @@ mod tests {
     fn normalise(c: i16) -> i16 {
         let mut v = barrett_reduce(c);
         if v < 0 {
-            v += crate::params::Q;
+            v += crate::Q;
         }
         v
     }
 
     #[test]
     fn ntt_basemul_matches_schoolbook() {
-        use super::super::poly::Poly;
+        use crate::poly::Poly;
 
         let mut a = Poly::zero();
         let mut b = Poly::zero();

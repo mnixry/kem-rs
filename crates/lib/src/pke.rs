@@ -1,10 +1,30 @@
 //! IND-CPA public-key encryption -- the inner PKE scheme used by ML-KEM.
 
+use sha3::digest::XofReader;
+
 use crate::{
     hash,
     math::{poly::Poly, polyvec::PolyVec, sample},
-    params::{MlKemParams, SYMBYTES},
+    params::{MlKemParams, N, SYMBYTES},
 };
+
+fn getnoise_eta(eta: usize, seed: &[u8; SYMBYTES], nonce: u8) -> Poly {
+    let mut p = Poly::zero();
+    match eta {
+        2 => {
+            let mut buf = [0u8; 2 * N / 4];
+            hash::prf(seed, nonce, &mut buf);
+            sample::cbd2(&mut p.coeffs, &buf);
+        }
+        3 => {
+            let mut buf = [0u8; 3 * N / 4];
+            hash::prf(seed, nonce, &mut buf);
+            sample::cbd3(&mut p.coeffs, &buf);
+        }
+        _ => unreachable!(),
+    }
+    p
+}
 
 /// Sample the KxK public matrix `A` from seed `rho` using SHAKE-128.
 /// If `transposed`, produces `A^T` for encryption.
@@ -17,7 +37,7 @@ fn gen_matrix<const K: usize>(a: &mut [PolyVec<K>], seed: &[u8; SYMBYTES], trans
                 (j as u8, i as u8)
             };
             let mut xof = hash::xof_absorb(seed, x, y);
-            sample::rej_uniform(&mut poly.coeffs, &mut xof);
+            sample::rej_uniform(&mut poly.coeffs, |buf| xof.read(buf));
         }
     }
 }
@@ -52,12 +72,12 @@ fn indcpa_keypair_inner<P: MlKemParams, const K: usize>(
     let mut nonce: u8 = 0;
     let mut skpv = PolyVec::<K>::zero();
     for p in &mut skpv.polys {
-        *p = Poly::getnoise_eta(P::ETA1, &noise_seed, nonce);
+        *p = getnoise_eta(P::ETA1, &noise_seed, nonce);
         nonce += 1;
     }
     let mut e = PolyVec::<K>::zero();
     for p in &mut e.polys {
-        *p = Poly::getnoise_eta(P::ETA1, &noise_seed, nonce);
+        *p = getnoise_eta(P::ETA1, &noise_seed, nonce);
         nonce += 1;
     }
 
@@ -108,15 +128,15 @@ fn indcpa_enc_inner<P: MlKemParams, const K: usize>(
     let mut nonce: u8 = 0;
     let mut sp = PolyVec::<K>::zero();
     for p in &mut sp.polys {
-        *p = Poly::getnoise_eta(P::ETA1, coins, nonce);
+        *p = getnoise_eta(P::ETA1, coins, nonce);
         nonce += 1;
     }
     let mut ep = PolyVec::<K>::zero();
     for p in &mut ep.polys {
-        *p = Poly::getnoise_eta(P::ETA2, coins, nonce);
+        *p = getnoise_eta(P::ETA2, coins, nonce);
         nonce += 1;
     }
-    let epp = Poly::getnoise_eta(P::ETA2, coins, nonce);
+    let epp = getnoise_eta(P::ETA2, coins, nonce);
 
     sp.ntt();
 
@@ -204,12 +224,12 @@ mod tests {
         let mut nonce = 0u8;
         let mut s = PolyVec::<K>::zero();
         for p in &mut s.polys {
-            *p = Poly::getnoise_eta(eta1, &noise_seed, nonce);
+            *p = getnoise_eta(eta1, &noise_seed, nonce);
             nonce += 1;
         }
         let mut e = PolyVec::<K>::zero();
         for p in &mut e.polys {
-            *p = Poly::getnoise_eta(eta1, &noise_seed, nonce);
+            *p = getnoise_eta(eta1, &noise_seed, nonce);
             nonce += 1;
         }
 
@@ -236,15 +256,15 @@ mod tests {
         let mut enc_nonce = 0u8;
         let mut r = PolyVec::<K>::zero();
         for p in &mut r.polys {
-            *p = Poly::getnoise_eta(eta1, &enc_coins, enc_nonce);
+            *p = getnoise_eta(eta1, &enc_coins, enc_nonce);
             enc_nonce += 1;
         }
         let mut e1 = PolyVec::<K>::zero();
         for p in &mut e1.polys {
-            *p = Poly::getnoise_eta(eta2, &enc_coins, enc_nonce);
+            *p = getnoise_eta(eta2, &enc_coins, enc_nonce);
             enc_nonce += 1;
         }
-        let e2 = Poly::getnoise_eta(eta2, &enc_coins, enc_nonce);
+        let e2 = getnoise_eta(eta2, &enc_coins, enc_nonce);
 
         r.ntt();
 
@@ -332,12 +352,12 @@ mod tests {
         let mut nonce = 0u8;
         let mut s = PolyVec::<K>::zero();
         for p in &mut s.polys {
-            *p = Poly::getnoise_eta(eta1, &noise_seed, nonce);
+            *p = getnoise_eta(eta1, &noise_seed, nonce);
             nonce += 1;
         }
         let mut e = PolyVec::<K>::zero();
         for p in &mut e.polys {
-            *p = Poly::getnoise_eta(eta1, &noise_seed, nonce);
+            *p = getnoise_eta(eta1, &noise_seed, nonce);
             nonce += 1;
         }
         s.ntt();
@@ -382,15 +402,15 @@ mod tests {
         let mut enc_nonce = 0u8;
         let mut r = PolyVec::<K>::zero();
         for p in &mut r.polys {
-            *p = Poly::getnoise_eta(eta1, &enc_coins, enc_nonce);
+            *p = getnoise_eta(eta1, &enc_coins, enc_nonce);
             enc_nonce += 1;
         }
         let mut e1 = PolyVec::<K>::zero();
         for p in &mut e1.polys {
-            *p = Poly::getnoise_eta(eta2, &enc_coins, enc_nonce);
+            *p = getnoise_eta(eta2, &enc_coins, enc_nonce);
             enc_nonce += 1;
         }
-        let e2_poly = Poly::getnoise_eta(eta2, &enc_coins, enc_nonce);
+        let e2_poly = getnoise_eta(eta2, &enc_coins, enc_nonce);
 
         r.ntt();
 

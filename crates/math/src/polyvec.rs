@@ -6,18 +6,19 @@
 use core::ops;
 
 use super::{pack, poly::Poly};
-use crate::params::{N, POLYBYTES};
+use crate::{N, POLYBYTES};
 
 /// A vector of `K` polynomials (K = 2, 3, or 4 in ML-KEM).
 #[derive(Clone)]
 pub struct PolyVec<const K: usize> {
-    pub(crate) polys: [Poly; K],
+    pub polys: [Poly; K],
 }
 
 impl<const K: usize> PolyVec<K> {
     #[inline]
-    pub fn zero() -> Self {
-        PolyVec {
+    #[must_use]
+    pub const fn zero() -> Self {
+        Self {
             polys: [Poly::zero(); K],
         }
     }
@@ -44,7 +45,7 @@ impl<const K: usize> PolyVec<K> {
     }
 
     /// Inner product with accumulation: `r = sum_i(a[i] * b[i])` (NTT domain).
-    pub fn basemul_acc_montgomery(r: &mut Poly, a: &PolyVec<K>, b: &PolyVec<K>) {
+    pub fn basemul_acc_montgomery(r: &mut Poly, a: &Self, b: &Self) {
         let mut tmp = Poly::zero();
         r.basemul_montgomery(&a.polys[0], &b.polys[0]);
         for i in 1..K {
@@ -62,8 +63,9 @@ impl<const K: usize> PolyVec<K> {
     }
 
     /// Deserialize from bytes.
+    #[must_use]
     pub fn frombytes(a: &[u8]) -> Self {
-        let mut pv = PolyVec::zero();
+        let mut pv = Self::zero();
         for (i, p) in pv.polys.iter_mut().enumerate() {
             pack::poly_frombytes(&mut p.coeffs, &a[i * POLYBYTES..(i + 1) * POLYBYTES]);
         }
@@ -84,9 +86,10 @@ impl<const K: usize> PolyVec<K> {
     }
 
     /// Decompress vector with `d_u` bits per coefficient.
+    #[must_use]
     pub fn decompress(a: &[u8], d_u: u32) -> Self {
         let bpp = N * d_u as usize / 8;
-        let mut pv = PolyVec::zero();
+        let mut pv = Self::zero();
         for (i, p) in pv.polys.iter_mut().enumerate() {
             let s = &a[i * bpp..(i + 1) * bpp];
             match d_u {
@@ -116,8 +119,8 @@ impl<'b, const K: usize> ops::Add<&'b PolyVec<K>> for &PolyVec<K> {
     }
 }
 
-impl<const K: usize> ops::AddAssign<&PolyVec<K>> for PolyVec<K> {
-    fn add_assign(&mut self, rhs: &PolyVec<K>) {
+impl<const K: usize> ops::AddAssign<&Self> for PolyVec<K> {
+    fn add_assign(&mut self, rhs: &Self) {
         for i in 0..K {
             self.polys[i] += &rhs.polys[i];
         }
@@ -127,7 +130,7 @@ impl<const K: usize> ops::AddAssign<&PolyVec<K>> for PolyVec<K> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::params::Q;
+    use crate::Q;
 
     #[test]
     fn tobytes_frombytes_roundtrip() {

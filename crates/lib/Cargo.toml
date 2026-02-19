@@ -9,6 +9,9 @@ rand_core = "0.10.0"
 sha3      = "0.10.8"
 zeroize   = { version = "1.8.2", features = ["derive"] }
 
+[dependencies.kem-math]
+path = "../math"
+
 [dev-dependencies]
 aes           = "0.8.4"
 core_affinity = "0.8.3"

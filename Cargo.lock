@@ -454,6 +454,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "kem-math"
+version = "0.1.0"
+
+[[package]]
 name = "kem-rs"
 version = "0.1.0"
 dependencies = [
@@ -463,6 +467,7 @@ dependencies = [
  "ctutils",
  "getrandom",
  "hex",
+ "kem-math",
  "mimalloc",
  "ml-kem",
  "rand_core 0.10.0",

@@ -1,9 +1,7 @@
 //! Deterministic sampling: CBD noise ([`cbd2`], [`cbd3`]) and rejection-uniform
 //! ([`rej_uniform`]).
 
-use sha3::digest::XofReader;
-
-use crate::params::{N, Q};
+use crate::{N, Q};
 
 /// SHAKE-128 output rate in bytes (one Keccak-f[1600] squeeze).
 pub const SHAKE128_RATE: usize = 168;
@@ -36,14 +34,15 @@ pub fn cbd3(r: &mut [i16; N], buf: &[u8]) {
     }
 }
 
-/// Rejection-sample N uniformly random coefficients in [0, q) from SHAKE-128
-/// XOF. Returns N.
-pub fn rej_uniform(r: &mut [i16; N], xof: &mut impl XofReader) -> usize {
+/// Rejection-sample N uniformly random coefficients in [0, q) from an XOF
+/// source. The `fill` closure is called repeatedly with a buffer to fill with
+/// fresh pseudorandom bytes. Returns N.
+pub fn rej_uniform(r: &mut [i16; N], mut fill: impl FnMut(&mut [u8])) -> usize {
     let mut ctr = 0;
     let mut buf = [0u8; SHAKE128_RATE];
 
     while ctr < N {
-        xof.read(&mut buf);
+        fill(&mut buf);
         let mut pos = 0;
         while ctr < N && pos + 3 <= SHAKE128_RATE {
             let val0 = ((buf[pos] as u16) | ((buf[pos + 1] as u16) << 8)) & 0x0FFF;
@@ -97,19 +96,20 @@ mod tests {
         let buf = [0u8; 128];
         let mut r = [99i16; N];
         cbd2(&mut r, &buf);
-        // All-zero PRF output -> a = b = 0 -> all coefficients zero.
         assert!(r.iter().all(|&c| c == 0));
     }
 
     #[test]
     fn rej_uniform_fills_completely() {
-        use crate::hash::xof_absorb;
-        let seed = [42u8; 32];
-        let mut xof = xof_absorb(&seed, 0, 0);
+        let mut counter = 0u8;
         let mut r = [0i16; N];
-        let count = rej_uniform(&mut r, &mut xof);
+        let count = rej_uniform(&mut r, |buf| {
+            for b in buf.iter_mut() {
+                *b = counter;
+                counter = counter.wrapping_add(1);
+            }
+        });
         assert_eq!(count, N);
-        // All coefficients in [0, q)
         for &c in &r {
             assert!((0..Q).contains(&c), "coefficient {c} out of [0, q)");
         }

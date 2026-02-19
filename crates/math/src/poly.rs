@@ -1,26 +1,24 @@
 //! Polynomial type and coefficient-level operations.
 //!
 //! `Poly` wraps `[i16; N]` (N=256) and provides arithmetic, NTT transforms,
-//! compression, serialisation, and noise sampling.
+//! compression, and serialisation.
 
 use core::ops;
 
 use super::{ntt, pack, sample};
-use crate::{
-    hash,
-    params::{N, SYMBYTES},
-};
+use crate::{N, SYMBYTES};
 
 /// Polynomial in `R_q = Z_q[X]/(X^n + 1)`, `N = 256` coefficients.
 #[derive(Clone, Copy)]
 pub struct Poly {
-    pub(crate) coeffs: [i16; N],
+    pub coeffs: [i16; N],
 }
 
 impl Poly {
     #[inline]
+    #[must_use]
     pub const fn zero() -> Self {
-        Poly { coeffs: [0i16; N] }
+        Self { coeffs: [0i16; N] }
     }
 
     /// Barrett-reduce every coefficient to the centered range.
@@ -48,7 +46,12 @@ impl Poly {
 
     /// Pointwise Montgomery multiply: `self = a * b` (NTT domain, 128 basemul
     /// pairs).
-    pub fn basemul_montgomery(&mut self, a: &Poly, b: &Poly) {
+    ///
+    /// # Panics
+    ///
+    /// Cannot panic — slice-to-array conversions are infallible for the fixed
+    /// layout of `N = 256`.
+    pub fn basemul_montgomery(&mut self, a: &Self, b: &Self) {
         for i in 0..N / 4 {
             let zi = 64 + i;
             ntt::basemul(
@@ -72,20 +75,23 @@ impl Poly {
     }
 
     /// Deserialize from bytes (12-bit unpacking).
+    #[must_use]
     pub fn frombytes(a: &[u8]) -> Self {
-        let mut p = Poly::zero();
+        let mut p = Self::zero();
         pack::poly_frombytes(&mut p.coeffs, a);
         p
     }
 
     /// Decode a 32-byte message to polynomial (1 bit per coefficient).
+    #[must_use]
     pub fn frommsg(msg: &[u8; SYMBYTES]) -> Self {
-        let mut p = Poly::zero();
+        let mut p = Self::zero();
         pack::poly_frommsg(&mut p.coeffs, msg);
         p
     }
 
     /// Encode polynomial to 32-byte message.
+    #[must_use]
     pub fn tomsg(&self) -> [u8; SYMBYTES] {
         let mut msg = [0u8; SYMBYTES];
         pack::poly_tomsg(&mut msg, &self.coeffs);
@@ -102,8 +108,9 @@ impl Poly {
     }
 
     /// Decompress from buffer with `d` bits.
+    #[must_use]
     pub fn decompress(a: &[u8], d: u32) -> Self {
-        let mut p = Poly::zero();
+        let mut p = Self::zero();
         match d {
             4 => pack::poly_decompress_d4(&mut p.coeffs, a),
             5 => pack::poly_decompress_d5(&mut p.coeffs, a),
@@ -112,22 +119,19 @@ impl Poly {
         p
     }
 
-    /// Sample noise polynomial from `PRF(seed, nonce)` with parameter `eta`.
-    pub fn getnoise_eta(eta: usize, seed: &[u8; SYMBYTES], nonce: u8) -> Self {
-        let mut p = Poly::zero();
-        match eta {
-            2 => {
-                let mut buf = [0u8; 2 * N / 4];
-                hash::prf(seed, nonce, &mut buf);
-                sample::cbd2(&mut p.coeffs, &buf);
-            }
-            3 => {
-                let mut buf = [0u8; 3 * N / 4];
-                hash::prf(seed, nonce, &mut buf);
-                sample::cbd3(&mut p.coeffs, &buf);
-            }
-            _ => unreachable!(),
-        }
+    /// Sample noise polynomial via CBD(eta=2) from a pre-filled buffer.
+    #[must_use]
+    pub fn from_cbd2(buf: &[u8]) -> Self {
+        let mut p = Self::zero();
+        sample::cbd2(&mut p.coeffs, buf);
+        p
+    }
+
+    /// Sample noise polynomial via CBD(eta=3) from a pre-filled buffer.
+    #[must_use]
+    pub fn from_cbd3(buf: &[u8]) -> Self {
+        let mut p = Self::zero();
+        sample::cbd3(&mut p.coeffs, buf);
         p
     }
 }
@@ -137,7 +141,7 @@ impl Poly {
 impl From<[i16; N]> for Poly {
     #[inline]
     fn from(coeffs: [i16; N]) -> Self {
-        Poly { coeffs }
+        Self { coeffs }
     }
 }
 
@@ -151,7 +155,7 @@ impl From<Poly> for [i16; N] {
 impl Default for Poly {
     #[inline]
     fn default() -> Self {
-        Poly::zero()
+        Self::zero()
     }
 }
 
@@ -185,16 +189,16 @@ impl<'b> ops::Sub<&'b Poly> for &Poly {
     }
 }
 
-impl ops::AddAssign<&Poly> for Poly {
+impl ops::AddAssign<&Self> for Poly {
     #[inline]
-    fn add_assign(&mut self, rhs: &Poly) {
+    fn add_assign(&mut self, rhs: &Self) {
         crate::simd::poly_add_assign(&mut self.coeffs, &rhs.coeffs);
     }
 }
 
-impl ops::SubAssign<&Poly> for Poly {
+impl ops::SubAssign<&Self> for Poly {
     #[inline]
-    fn sub_assign(&mut self, rhs: &Poly) {
+    fn sub_assign(&mut self, rhs: &Self) {
         for i in 0..N {
             self.coeffs[i] -= rhs.coeffs[i];
         }
@@ -204,7 +208,7 @@ impl ops::SubAssign<&Poly> for Poly {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::params::{POLYBYTES, Q};
+    use crate::{POLYBYTES, Q};
 
     #[test]
     fn add_sub_inverse() {
@@ -255,23 +259,5 @@ mod tests {
         let p = Poly::frommsg(&msg);
         let recovered = p.tomsg();
         assert_eq!(msg, recovered);
-    }
-
-    #[test]
-    fn getnoise_eta2_bounded() {
-        let seed = [0u8; SYMBYTES];
-        let p = Poly::getnoise_eta(2, &seed, 0);
-        for &c in &p.coeffs {
-            assert!((-2..=2).contains(&c));
-        }
-    }
-
-    #[test]
-    fn getnoise_eta3_bounded() {
-        let seed = [1u8; SYMBYTES];
-        let p = Poly::getnoise_eta(3, &seed, 0);
-        for &c in &p.coeffs {
-            assert!((-3..=3).contains(&c));
-        }
     }
 }
