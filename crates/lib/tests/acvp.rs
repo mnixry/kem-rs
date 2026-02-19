@@ -9,14 +9,12 @@ use kem_rs::{
 };
 use serde::{Deserialize, de};
 
-const KEYGEN_PROMPT_JSON: &[u8] =
-    include_bytes!("data/acvp/gen-val/json-files/ML-KEM-keyGen-FIPS203/prompt.json");
+const KEYGEN_PROMPT_JSON: &[u8] = include_bytes!("data/acvp/ML-KEM-keyGen-FIPS203/prompt.json");
 const KEYGEN_EXPECTED_JSON: &[u8] =
-    include_bytes!("data/acvp/gen-val/json-files/ML-KEM-keyGen-FIPS203/expectedResults.json");
-const ENCAP_PROMPT_JSON: &[u8] =
-    include_bytes!("data/acvp/gen-val/json-files/ML-KEM-encapDecap-FIPS203/prompt.json");
+    include_bytes!("data/acvp/ML-KEM-keyGen-FIPS203/expectedResults.json");
+const ENCAP_PROMPT_JSON: &[u8] = include_bytes!("data/acvp/ML-KEM-encapDecap-FIPS203/prompt.json");
 const ENCAP_EXPECTED_JSON: &[u8] =
-    include_bytes!("data/acvp/gen-val/json-files/ML-KEM-encapDecap-FIPS203/expectedResults.json");
+    include_bytes!("data/acvp/ML-KEM-encapDecap-FIPS203/expectedResults.json");
 
 fn parse_json<T: for<'de> Deserialize<'de>>(bytes: &[u8]) -> T {
     serde_json::from_slice(bytes).expect("json")

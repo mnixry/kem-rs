@@ -1,3 +1,0 @@
-[submodule "tests/data/acvp"]
-	path = tests/data/acvp
-	url = https://github.com/usnistgov/ACVP-Server
