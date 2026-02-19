@@ -18,6 +18,7 @@
     flake-utils.lib.eachDefaultSystem (
       system:
       let
+        inherit (nixpkgs) lib;
         pkgs = import nixpkgs {
           inherit system;
           overlays = [ (import rust-overlay) ];
@@ -25,16 +26,26 @@
         rust = pkgs.rust-bin.selectLatestNightlyWith (
           toolchain:
           toolchain.default.override {
-            extensions = [ "rust-src" ];
+            extensions = [
+              "rust-src"
+              "llvm-tools-preview"
+            ];
           }
         );
       in
       {
         devShell = pkgs.mkShell {
-          buildInputs = [
-            rust
-            pkgs.taplo
-          ];
+          buildInputs =
+            lib.singleton rust
+            ++ (with pkgs; [
+              cargo-nextest
+              cargo-llvm-cov
+              cargo-criterion
+              cargo-pgo
+              llvmPackages.bolt
+              gnuplot
+              taplo
+            ]);
         };
       }
     );
