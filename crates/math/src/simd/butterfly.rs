@@ -1,14 +1,15 @@
 use core::simd::Simd;
 
-use super::kernels::{DEFAULT_LANES, barrett_reduce_vec, fqmul_vec};
+use super::kernels::{barrett_reduce_vec, fqmul_vec};
 
 /// Forward butterfly: `(lo, hi) <- (lo + t, lo - t)` where `t = zeta * hi *
 /// R^{-1}`.
 ///
-/// SIMD for chunks of `DEFAULT_LANES`, scalar fallback for the remainder.
+/// SIMD width selected by the global lane-width setting; scalar fallback for
+/// any remainder elements.
 #[inline]
 pub fn butterfly_forward(lo: &mut [i16], hi: &mut [i16], zeta: i16) {
-    butterfly_forward_lanes::<DEFAULT_LANES>(lo, hi, zeta);
+    super::dispatch_lanes!(butterfly_forward_lanes(lo, hi, zeta));
 }
 
 #[inline]
@@ -35,7 +36,7 @@ fn butterfly_forward_lanes<const L: usize>(lo: &mut [i16], hi: &mut [i16], zeta:
 /// Inverse butterfly: `(lo, hi) <- (barrett(lo+hi), zeta*(hi-lo)*R^{-1})`.
 #[inline]
 pub fn butterfly_inverse(lo: &mut [i16], hi: &mut [i16], zeta: i16) {
-    butterfly_inverse_lanes::<DEFAULT_LANES>(lo, hi, zeta);
+    super::dispatch_lanes!(butterfly_inverse_lanes(lo, hi, zeta));
 }
 
 #[inline]

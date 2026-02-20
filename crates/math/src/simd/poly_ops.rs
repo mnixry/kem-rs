@@ -1,12 +1,12 @@
 use core::simd::{Simd, prelude::*};
 
-use super::kernels::{DEFAULT_LANES, barrett_reduce_vec, fqmul_vec, montgomery_reduce_vec};
+use super::kernels::{barrett_reduce_vec, fqmul_vec, montgomery_reduce_vec};
 use crate::{N, Q};
 
 /// Barrett-reduce all `N` coefficients in-place.
 #[inline]
 pub fn poly_reduce(c: &mut [i16; N]) {
-    poly_reduce_lanes::<DEFAULT_LANES>(c);
+    super::dispatch_lanes!(poly_reduce_lanes(c));
 }
 
 #[inline]
@@ -19,7 +19,7 @@ fn poly_reduce_lanes<const L: usize>(c: &mut [i16; N]) {
 /// `r[i] = a[i] + b[i]`.
 #[inline]
 pub fn poly_add(r: &mut [i16; N], a: &[i16; N], b: &[i16; N]) {
-    poly_add_lanes::<DEFAULT_LANES>(r, a, b);
+    super::dispatch_lanes!(poly_add_lanes(r, a, b));
 }
 
 #[inline]
@@ -34,7 +34,7 @@ fn poly_add_lanes<const L: usize>(r: &mut [i16; N], a: &[i16; N], b: &[i16; N]) 
 /// `r[i] += b[i]`.
 #[inline]
 pub fn poly_add_assign(r: &mut [i16; N], b: &[i16; N]) {
-    poly_add_assign_lanes::<DEFAULT_LANES>(r, b);
+    super::dispatch_lanes!(poly_add_assign_lanes(r, b));
 }
 
 #[inline]
@@ -49,7 +49,7 @@ fn poly_add_assign_lanes<const L: usize>(r: &mut [i16; N], b: &[i16; N]) {
 /// `r[i] = a[i] - b[i]`.
 #[inline]
 pub fn poly_sub(r: &mut [i16; N], a: &[i16; N], b: &[i16; N]) {
-    poly_sub_lanes::<DEFAULT_LANES>(r, a, b);
+    super::dispatch_lanes!(poly_sub_lanes(r, a, b));
 }
 
 #[inline]
@@ -64,7 +64,7 @@ fn poly_sub_lanes<const L: usize>(r: &mut [i16; N], a: &[i16; N], b: &[i16; N]) 
 /// Convert all coefficients to Montgomery domain: `c_i <- c_i * R mod q`.
 #[inline]
 pub fn poly_to_montgomery(c: &mut [i16; N]) {
-    poly_to_montgomery_lanes::<DEFAULT_LANES>(c);
+    super::dispatch_lanes!(poly_to_montgomery_lanes(c));
 }
 
 #[inline]
@@ -80,7 +80,7 @@ fn poly_to_montgomery_lanes<const L: usize>(c: &mut [i16; N]) {
 /// `c_i <- c_i * scalar * R^{-1} mod q`.
 #[inline]
 pub fn poly_mul_scalar_montgomery(c: &mut [i16; N], scalar: i16) {
-    poly_mul_scalar_montgomery_lanes::<DEFAULT_LANES>(c, scalar);
+    super::dispatch_lanes!(poly_mul_scalar_montgomery_lanes(c, scalar));
 }
 
 #[inline]

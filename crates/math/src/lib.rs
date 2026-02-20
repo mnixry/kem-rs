@@ -26,6 +26,7 @@ mod simd;
 pub use compress::{CompressWidth, D4, D5, D10, D11};
 pub use poly::{NttMatrix, NttPolynomial, NttVector, Polynomial, Vector};
 pub use sample::{CbdWidth, Eta2, Eta3, reject_uniform};
+pub use simd::{LaneWidth, get_lane_width, set_lane_width};
 
 /// Polynomial ring degree.
 pub const N: usize = 256;
