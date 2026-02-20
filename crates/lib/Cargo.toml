@@ -16,7 +16,6 @@ zeroize   = { version = "1.8.2", features = ["derive"] }
 path = "../math"
 
 [dev-dependencies]
-kem-math      = { path = "../math" }
 aes           = "0.8.4"
 core_affinity = "0.8.3"
 criterion     = "0.8.2"

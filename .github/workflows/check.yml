@@ -1,0 +1,22 @@
+name: Nix Flake Check
+on:
+  push:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@main
+      - uses: nixbuild/nix-quick-install-action@master
+        with:
+          nix_conf: |
+            keep-env-derivations = true
+            keep-outputs = true
+      - uses: nix-community/cache-nix-action@main
+        with:
+          purge: true
+          purge-primary-key: always
+          purge-last-accessed: 0
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', '**/flake.lock') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-
+          gc-max-store-size: 1G
+      - run: nix flake check --print-build-logs
