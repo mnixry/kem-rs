@@ -29,7 +29,7 @@ impl Polynomial {
     /// Consuming forward NTT transform.
     #[must_use]
     pub fn ntt(mut self) -> NttPolynomial {
-        ntt::ntt(&mut self.0);
+        ntt::forward_ntt(&mut self.0);
         NttPolynomial(self.0)
     }
 
@@ -97,7 +97,7 @@ impl NttPolynomial {
     /// Consuming inverse NTT transform (result in Montgomery domain).
     #[must_use]
     pub fn ntt_inverse(mut self) -> Polynomial {
-        ntt::invntt(&mut self.0);
+        ntt::inverse_ntt(&mut self.0);
         Polynomial(self.0)
     }
 
@@ -107,7 +107,7 @@ impl NttPolynomial {
 
     /// Convert all coefficients to Montgomery representation.
     pub fn to_mont(&mut self) {
-        crate::simd::poly_tomont(&mut self.0);
+        crate::simd::poly_to_montgomery(&mut self.0);
     }
 
     /// Pointwise Montgomery multiply (128 basemul pairs in NTT domain).

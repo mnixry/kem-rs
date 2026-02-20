@@ -61,7 +61,7 @@ impl CbdWidth for Eta3 {
 
 const SHAKE128_RATE: usize = 168;
 
-pub fn rej_uniform(r: &mut [i16; N], mut fill: impl FnMut(&mut [u8])) -> usize {
+pub fn reject_uniform(r: &mut [i16; N], mut fill: impl FnMut(&mut [u8])) -> usize {
     let mut ctr = 0;
     let mut buf = [0u8; SHAKE128_RATE];
 
@@ -124,10 +124,10 @@ mod tests {
     }
 
     #[test]
-    fn rej_uniform_fills_completely() {
+    fn reject_uniform_fills_completely() {
         let mut counter = 0u8;
         let mut r = [0i16; N];
-        let count = rej_uniform(&mut r, |buf| {
+        let count = reject_uniform(&mut r, |buf| {
             for b in buf.iter_mut() {
                 *b = counter;
                 counter = counter.wrapping_add(1);

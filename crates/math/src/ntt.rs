@@ -1,7 +1,7 @@
 //! Number-Theoretic Transform and base multiplication in `Z_q[X]/(X^2 - zeta)`.
 //!
-//! - `ntt`: forward NTT, standard order -> bit-reversed order.
-//! - `invntt`: inverse NTT with Montgomery scaling.
+//! - `forward_ntt`: forward NTT, standard order -> bit-reversed order.
+//! - `inverse_ntt`: inverse NTT with Montgomery scaling.
 //! - `basemul`: degree-1 multiplication in the NTT domain.
 
 use crate::N;
@@ -20,7 +20,7 @@ pub static ZETAS: [i16; 128] = [
 ];
 
 /// Forward NTT (in-place). Standard order in, bit-reversed order out.
-pub fn ntt(r: &mut [i16; N]) {
+pub fn forward_ntt(r: &mut [i16; N]) {
     let mut k: usize = 1;
     let mut len = 128;
     while len >= 2 {
@@ -29,7 +29,7 @@ pub fn ntt(r: &mut [i16; N]) {
             let zeta = ZETAS[k];
             k += 1;
             let (lo, hi) = r[start..start + 2 * len].split_at_mut(len);
-            crate::simd::butterfly_fwd(lo, hi, zeta);
+            crate::simd::butterfly_forward(lo, hi, zeta);
             start += 2 * len;
         }
         len >>= 1;
@@ -38,7 +38,7 @@ pub fn ntt(r: &mut [i16; N]) {
 
 /// Inverse NTT (in-place). Bit-reversed in, standard order out,
 /// each coefficient scaled by Montgomery factor `R = 2^{16}`.
-pub fn invntt(r: &mut [i16; N]) {
+pub fn inverse_ntt(r: &mut [i16; N]) {
     const F: i16 = 1441; // mont^2 * 128^{-1} mod q
     let mut k: usize = 127;
     let mut len = 2;
@@ -48,12 +48,12 @@ pub fn invntt(r: &mut [i16; N]) {
             let zeta = ZETAS[k];
             k = k.wrapping_sub(1);
             let (lo, hi) = r[start..start + 2 * len].split_at_mut(len);
-            crate::simd::butterfly_inv(lo, hi, zeta);
+            crate::simd::butterfly_inverse(lo, hi, zeta);
             start += 2 * len;
         }
         len <<= 1;
     }
-    crate::simd::poly_fqmul_scalar(r, F);
+    crate::simd::poly_mul_scalar_montgomery(r, F);
 }
 
 #[cfg(test)]
@@ -62,15 +62,15 @@ mod tests {
     use crate::reduce::{barrett_reduce, fqmul};
 
     #[test]
-    fn ntt_invntt_roundtrip() {
+    fn ntt_inverse_ntt_roundtrip() {
         let mut a = [0i16; N];
         for (i, c) in a.iter_mut().enumerate() {
             *c = (i % 13) as i16;
         }
         let original = a;
-        ntt(&mut a);
+        forward_ntt(&mut a);
         assert_ne!(a, original, "NTT should change coefficients");
-        invntt(&mut a);
+        inverse_ntt(&mut a);
 
         for c in &mut a {
             *c = barrett_reduce(fqmul(*c, 1));

@@ -217,7 +217,7 @@ fn gen_matrix_inner<const K: usize>(seed: &[u8; SYMBYTES], transposed: bool) -> 
                 (j as u8, i as u8)
             };
             let mut xof = crate::hash::xof_absorb(seed, x, y);
-            sample::rej_uniform(poly.coeffs_mut(), |buf| xof.read(buf));
+            sample::reject_uniform(poly.coeffs_mut(), |buf| xof.read(buf));
         }
     }
     a

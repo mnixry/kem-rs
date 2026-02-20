@@ -15,14 +15,14 @@ use core::simd::{Simd, prelude::*};
 use crate::{N, Q, reduce::QINV};
 
 /// 16 x i16 = 256-bit default. Matches SSE4 / NEON register width.
-pub const DEFAULT_LANES: usize = 16;
+const DEFAULT_LANES: usize = 16;
 
 // -- element-wise SIMD kernels -----------------------------------------------
 
 /// Barrett reduction: `r \equiv a \pmod{q}`, centered `|r| <= q/2`.
 #[inline]
 #[must_use]
-pub fn barrett_reduce_vec<const L: usize>(a: Simd<i16, L>) -> Simd<i16, L> {
+fn barrett_reduce_vec<const L: usize>(a: Simd<i16, L>) -> Simd<i16, L> {
     const V: i32 = 20159;
     let aw: Simd<i32, L> = a.cast();
     let t =
@@ -33,7 +33,7 @@ pub fn barrett_reduce_vec<const L: usize>(a: Simd<i16, L>) -> Simd<i16, L> {
 /// Montgomery reduction: `a * R^{-1} mod q`, `R = 2^{16}`.
 #[inline]
 #[must_use]
-pub fn montgomery_reduce_vec<const L: usize>(a: Simd<i32, L>) -> Simd<i16, L> {
+fn montgomery_reduce_vec<const L: usize>(a: Simd<i32, L>) -> Simd<i16, L> {
     let qinv = Simd::<i32, L>::splat(QINV as i32);
     let q = Simd::<i32, L>::splat(Q as i32);
     let s16 = Simd::splat(16);
@@ -45,7 +45,7 @@ pub fn montgomery_reduce_vec<const L: usize>(a: Simd<i32, L>) -> Simd<i16, L> {
 /// Field multiply: `a * b * R^{-1} mod q`.
 #[inline]
 #[must_use]
-pub fn fqmul_vec<const L: usize>(a: Simd<i16, L>, b: Simd<i16, L>) -> Simd<i16, L> {
+fn fqmul_vec<const L: usize>(a: Simd<i16, L>, b: Simd<i16, L>) -> Simd<i16, L> {
     montgomery_reduce_vec(a.cast::<i32>() * b.cast::<i32>())
 }
 
@@ -58,7 +58,7 @@ pub fn poly_reduce(c: &mut [i16; N]) {
 }
 
 #[inline]
-pub fn poly_reduce_lanes<const L: usize>(c: &mut [i16; N]) {
+fn poly_reduce_lanes<const L: usize>(c: &mut [i16; N]) {
     for ch in c.chunks_exact_mut(L) {
         barrett_reduce_vec(Simd::<i16, L>::from_slice(ch)).copy_to_slice(ch);
     }
@@ -71,7 +71,7 @@ pub fn poly_add(r: &mut [i16; N], a: &[i16; N], b: &[i16; N]) {
 }
 
 #[inline]
-pub fn poly_add_lanes<const L: usize>(r: &mut [i16; N], a: &[i16; N], b: &[i16; N]) {
+fn poly_add_lanes<const L: usize>(r: &mut [i16; N], a: &[i16; N], b: &[i16; N]) {
     for i in (0..N).step_by(L) {
         let va = Simd::<i16, L>::from_slice(&a[i..]);
         let vb = Simd::<i16, L>::from_slice(&b[i..]);
@@ -86,7 +86,7 @@ pub fn poly_add_assign(r: &mut [i16; N], b: &[i16; N]) {
 }
 
 #[inline]
-pub fn poly_add_assign_lanes<const L: usize>(r: &mut [i16; N], b: &[i16; N]) {
+fn poly_add_assign_lanes<const L: usize>(r: &mut [i16; N], b: &[i16; N]) {
     for i in (0..N).step_by(L) {
         let va = Simd::<i16, L>::from_slice(&r[i..]);
         let vb = Simd::<i16, L>::from_slice(&b[i..]);
@@ -101,7 +101,7 @@ pub fn poly_sub(r: &mut [i16; N], a: &[i16; N], b: &[i16; N]) {
 }
 
 #[inline]
-pub fn poly_sub_lanes<const L: usize>(r: &mut [i16; N], a: &[i16; N], b: &[i16; N]) {
+fn poly_sub_lanes<const L: usize>(r: &mut [i16; N], a: &[i16; N], b: &[i16; N]) {
     for i in (0..N).step_by(L) {
         let va = Simd::<i16, L>::from_slice(&a[i..]);
         let vb = Simd::<i16, L>::from_slice(&b[i..]);
@@ -111,12 +111,12 @@ pub fn poly_sub_lanes<const L: usize>(r: &mut [i16; N], a: &[i16; N], b: &[i16; 
 
 /// Convert all coefficients to Montgomery domain: `c_i <- c_i * R mod q`.
 #[inline]
-pub fn poly_tomont(c: &mut [i16; N]) {
-    poly_tomont_lanes::<DEFAULT_LANES>(c);
+pub fn poly_to_montgomery(c: &mut [i16; N]) {
+    poly_to_montgomery_lanes::<DEFAULT_LANES>(c);
 }
 
 #[inline]
-pub fn poly_tomont_lanes<const L: usize>(c: &mut [i16; N]) {
+fn poly_to_montgomery_lanes<const L: usize>(c: &mut [i16; N]) {
     const F: i32 = ((1u64 << 32) % (Q as u64)) as i32; // R^2 mod q = 1353
     let f = Simd::<i32, L>::splat(F);
     for i in (0..N).step_by(L) {
@@ -127,12 +127,12 @@ pub fn poly_tomont_lanes<const L: usize>(c: &mut [i16; N]) {
 
 /// `c_i <- c_i * scalar * R^{-1} mod q`.
 #[inline]
-pub fn poly_fqmul_scalar(c: &mut [i16; N], scalar: i16) {
-    poly_fqmul_scalar_lanes::<DEFAULT_LANES>(c, scalar);
+pub fn poly_mul_scalar_montgomery(c: &mut [i16; N], scalar: i16) {
+    poly_mul_scalar_montgomery_lanes::<DEFAULT_LANES>(c, scalar);
 }
 
 #[inline]
-pub fn poly_fqmul_scalar_lanes<const L: usize>(c: &mut [i16; N], scalar: i16) {
+fn poly_mul_scalar_montgomery_lanes<const L: usize>(c: &mut [i16; N], scalar: i16) {
     let s = Simd::<i16, L>::splat(scalar);
     for i in (0..N).step_by(L) {
         let v = Simd::<i16, L>::from_slice(&c[i..]);
@@ -147,12 +147,12 @@ pub fn poly_fqmul_scalar_lanes<const L: usize>(c: &mut [i16; N], scalar: i16) {
 ///
 /// SIMD for chunks of `DEFAULT_LANES`, scalar fallback for the remainder.
 #[inline]
-pub fn butterfly_fwd(lo: &mut [i16], hi: &mut [i16], zeta: i16) {
-    butterfly_fwd_lanes::<DEFAULT_LANES>(lo, hi, zeta);
+pub fn butterfly_forward(lo: &mut [i16], hi: &mut [i16], zeta: i16) {
+    butterfly_forward_lanes::<DEFAULT_LANES>(lo, hi, zeta);
 }
 
 #[inline]
-pub fn butterfly_fwd_lanes<const L: usize>(lo: &mut [i16], hi: &mut [i16], zeta: i16) {
+fn butterfly_forward_lanes<const L: usize>(lo: &mut [i16], hi: &mut [i16], zeta: i16) {
     debug_assert_eq!(lo.len(), hi.len());
     let n = lo.len();
     let z = Simd::<i16, L>::splat(zeta);
@@ -174,12 +174,12 @@ pub fn butterfly_fwd_lanes<const L: usize>(lo: &mut [i16], hi: &mut [i16], zeta:
 
 /// Inverse butterfly: `(lo, hi) <- (barrett(lo+hi), zeta*(hi-lo)*R^{-1})`.
 #[inline]
-pub fn butterfly_inv(lo: &mut [i16], hi: &mut [i16], zeta: i16) {
-    butterfly_inv_lanes::<DEFAULT_LANES>(lo, hi, zeta);
+pub fn butterfly_inverse(lo: &mut [i16], hi: &mut [i16], zeta: i16) {
+    butterfly_inverse_lanes::<DEFAULT_LANES>(lo, hi, zeta);
 }
 
 #[inline]
-pub fn butterfly_inv_lanes<const L: usize>(lo: &mut [i16], hi: &mut [i16], zeta: i16) {
+fn butterfly_inverse_lanes<const L: usize>(lo: &mut [i16], hi: &mut [i16], zeta: i16) {
     debug_assert_eq!(lo.len(), hi.len());
     let n = lo.len();
     let z = Simd::<i16, L>::splat(zeta);
@@ -253,7 +253,7 @@ mod tests {
     }
 
     #[test]
-    fn simd_butterfly_fwd_matches_scalar() {
+    fn simd_butterfly_forward_matches_scalar() {
         const M: usize = 32;
         let mut lo_s = [0i16; M];
         let mut hi_s = [0i16; M];
@@ -265,7 +265,7 @@ mod tests {
         let mut hi_v = hi_s;
         let zeta = 1234i16;
 
-        butterfly_fwd(&mut lo_v, &mut hi_v, zeta);
+        butterfly_forward(&mut lo_v, &mut hi_v, zeta);
         for i in 0..M {
             let t = reduce::fqmul(zeta, hi_s[i]);
             hi_s[i] = lo_s[i] - t;
@@ -276,7 +276,7 @@ mod tests {
     }
 
     #[test]
-    fn simd_butterfly_inv_matches_scalar() {
+    fn simd_butterfly_inverse_matches_scalar() {
         const M: usize = 32;
         let mut lo_s = [0i16; M];
         let mut hi_s = [0i16; M];
@@ -288,7 +288,7 @@ mod tests {
         let mut hi_v = hi_s;
         let zeta = -567i16;
 
-        butterfly_inv(&mut lo_v, &mut hi_v, zeta);
+        butterfly_inverse(&mut lo_v, &mut hi_v, zeta);
         for i in 0..M {
             let t = lo_s[i];
             lo_s[i] = reduce::barrett_reduce(t + hi_s[i]);
