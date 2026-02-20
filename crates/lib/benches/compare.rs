@@ -1,4 +1,4 @@
-//! Side-by-side performance comparison: kem-rs vs RustCrypto ml-kem.
+//! Side-by-side performance comparison: kem-rs vs `RustCrypto` ml-kem.
 
 use core::hint::black_box;
 
@@ -21,6 +21,7 @@ fn enc_coins(tag: u8) -> [u8; 32] {
     core::array::from_fn(|i| (i as u8).wrapping_add(tag.wrapping_mul(53)))
 }
 
+#[allow(clippy::many_single_char_names, clippy::similar_names)]
 fn bench_param_set<P: kem_rs::ParameterSet, RC: KemCore>(c: &mut Criterion, tag: u8) {
     let mut g = c.benchmark_group(std::any::type_name::<P>());
     let (d, z, full) = keygen_coins(tag);
@@ -36,10 +37,10 @@ fn bench_param_set<P: kem_rs::ParameterSet, RC: KemCore>(c: &mut Criterion, tag:
     let (rc_ct, _) = rc_ek.encapsulate_deterministic(&m_b).unwrap();
 
     g.bench_function(BenchmarkId::new("keypair", "kem-rs"), |b| {
-        b.iter(|| black_box(kem_rs::keypair_derand::<P>(black_box(&full))))
+        b.iter(|| black_box(kem_rs::keypair_derand::<P>(black_box(&full))));
     });
     g.bench_function(BenchmarkId::new("keypair", "rustcrypto"), |b| {
-        b.iter(|| black_box(RC::generate_deterministic(black_box(&d_b), black_box(&z_b))))
+        b.iter(|| black_box(RC::generate_deterministic(black_box(&d_b), black_box(&z_b))));
     });
 
     g.bench_function(BenchmarkId::new("encapsulate", "kem-rs"), |b| {
@@ -48,10 +49,10 @@ fn bench_param_set<P: kem_rs::ParameterSet, RC: KemCore>(c: &mut Criterion, tag:
                 black_box(&our_pk),
                 black_box(&m),
             ))
-        })
+        });
     });
     g.bench_function(BenchmarkId::new("encapsulate", "rustcrypto"), |b| {
-        b.iter(|| black_box(rc_ek.encapsulate_deterministic(black_box(&m_b)).unwrap()))
+        b.iter(|| black_box(rc_ek.encapsulate_deterministic(black_box(&m_b)).unwrap()));
     });
 
     g.bench_function(BenchmarkId::new("decapsulate", "kem-rs"), |b| {
@@ -59,12 +60,26 @@ fn bench_param_set<P: kem_rs::ParameterSet, RC: KemCore>(c: &mut Criterion, tag:
             black_box(kem_rs::decapsulate::<P>(
                 black_box(&our_ct),
                 black_box(&our_sk),
-            ))
-        })
+            ));
+        });
     });
     g.bench_function(BenchmarkId::new("decapsulate", "rustcrypto"), |b| {
-        b.iter(|| black_box(rc_dk.decapsulate(black_box(&rc_ct)).unwrap()))
+        b.iter(|| black_box(rc_dk.decapsulate(black_box(&rc_ct)).unwrap()));
     });
+
+    g.bench_function(BenchmarkId::new("roundtrip", "kem-rs"), |b| {
+        b.iter(|| {
+            let (ct, _ss_enc) = kem_rs::encapsulate_derand::<P>(black_box(&our_pk), black_box(&m));
+            black_box(kem_rs::decapsulate::<P>(black_box(&ct), black_box(&our_sk)));
+        });
+    });
+    g.bench_function(BenchmarkId::new("roundtrip", "rustcrypto"), |b| {
+        b.iter(|| {
+            let (ct, _ss_enc) = rc_ek.encapsulate_deterministic(black_box(&m_b)).unwrap();
+            black_box(rc_dk.decapsulate(black_box(&ct)).unwrap());
+        });
+    });
+
     g.finish();
 }
 

@@ -1,4 +1,4 @@
-//! Byte-for-byte comparison against the RustCrypto `ml-kem` crate.
+//! Byte-for-byte comparison against the `RustCrypto` `ml-kem` crate.
 //! Both implement FIPS 203 -- deterministic operations must produce identical
 //! output.
 

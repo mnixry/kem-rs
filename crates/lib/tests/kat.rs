@@ -1,5 +1,7 @@
 //! NIST KAT transcript hash checks for ML-KEM parameter sets.
 
+use std::fmt::Write;
+
 use aes::cipher::{BlockEncrypt, KeyInit};
 use kem_rs::{
     MlKem512, MlKem768, MlKem1024, ParameterSet, decapsulate, encapsulate_derand, keypair_derand,
@@ -92,7 +94,10 @@ fn hex_upper(bytes: &[u8]) -> String {
     if bytes.is_empty() {
         return "00".to_string();
     }
-    bytes.iter().map(|b| format!("{b:02X}")).collect()
+    bytes.iter().fold(String::new(), |mut s, b| {
+        write!(s, "{b:02X}").unwrap();
+        s
+    })
 }
 
 fn run_nist_kat_case<P: ParameterSet>() -> String {
@@ -114,12 +119,12 @@ fn run_nist_kat_case<P: ParameterSet>() -> String {
     assert_eq!(ss_enc.as_ref(), ss_dec.as_ref());
 
     let mut transcript = String::new();
-    transcript.push_str("count = 0\n");
-    transcript.push_str(&format!("seed = {}\n", hex_upper(&seed)));
-    transcript.push_str(&format!("pk = {}\n", hex_upper(pk.as_ref())));
-    transcript.push_str(&format!("sk = {}\n", hex_upper(sk.as_ref())));
-    transcript.push_str(&format!("ct = {}\n", hex_upper(ct.as_ref())));
-    transcript.push_str(&format!("ss = {}\n", hex_upper(ss_enc.as_ref())));
+    writeln!(transcript, "count = 0").ok();
+    writeln!(transcript, "seed = {}", hex_upper(&seed)).ok();
+    writeln!(transcript, "pk = {}", hex_upper(pk.as_ref())).ok();
+    writeln!(transcript, "sk = {}", hex_upper(sk.as_ref())).ok();
+    writeln!(transcript, "ct = {}", hex_upper(ct.as_ref())).ok();
+    writeln!(transcript, "ss = {}", hex_upper(ss_enc.as_ref())).ok();
 
     let mut hasher = Sha256::new();
     hasher.update(transcript.as_bytes());
