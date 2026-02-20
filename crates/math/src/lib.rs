@@ -10,11 +10,9 @@
 #![deny(unsafe_code)]
 #![allow(
     clippy::cast_lossless,
-    clippy::cast_possible_truncation,
     clippy::cast_possible_wrap,
     clippy::cast_sign_loss,
-    clippy::many_single_char_names,
-    clippy::cargo_common_metadata
+    clippy::many_single_char_names
 )]
 
 pub mod ntt;
