@@ -1,117 +1,190 @@
-//! Vector of polynomials and associated operations.
+//! Domain-separated polynomial vector types.
 //!
-//! `PolyVec<K>` holds `K` polynomials and provides NTT, inner product,
-//! compression, and byte serialisation parameterised by const-generic rank `K`.
+//! [`Vector`] holds `K` [`Polynomial`]s in standard form.
+//! [`NttVector`] holds `K` [`NttPolynomial`]s in NTT domain.
+//! Conversions between them are consuming, mirroring the scalar polynomial
+//! types.
 
 use core::ops;
 
-use super::{pack, poly::Poly};
-use crate::{N, POLYBYTES};
+use crate::{
+    POLYBYTES,
+    compress::CompressWidth,
+    encode,
+    poly::{NttPolynomial, Polynomial},
+};
 
-/// A vector of `K` polynomials (K = 2, 3, or 4 in ML-KEM).
+/// A vector of `K` polynomials in standard (coefficient) form.
 #[derive(Clone)]
-pub struct PolyVec<const K: usize> {
-    pub polys: [Poly; K],
+pub struct Vector<const K: usize> {
+    pub(crate) polys: [Polynomial; K],
 }
 
-impl<const K: usize> PolyVec<K> {
+/// A vector of `K` polynomials in NTT domain.
+#[derive(Clone)]
+pub struct NttVector<const K: usize> {
+    pub(crate) polys: [NttPolynomial; K],
+}
+
+// -- Vector (standard form) --------------------------------------------------
+
+impl<const K: usize> Vector<K> {
     #[inline]
     #[must_use]
     pub const fn zero() -> Self {
         Self {
-            polys: [Poly::zero(); K],
+            polys: [Polynomial::zero(); K],
         }
     }
 
-    /// Forward NTT on every polynomial.
-    pub fn ntt(&mut self) {
-        for p in &mut self.polys {
-            p.ntt();
-        }
+    /// Consuming forward NTT on every polynomial.
+    #[must_use]
+    pub fn ntt(self) -> NttVector<K> {
+        let polys = self.polys.map(Polynomial::ntt);
+        NttVector { polys }
     }
 
-    /// Inverse NTT on every polynomial (result in Montgomery domain).
-    pub fn invntt_tomont(&mut self) {
-        for p in &mut self.polys {
-            p.invntt_tomont();
-        }
-    }
-
-    /// Barrett-reduce all coefficients in every polynomial.
     pub fn reduce(&mut self) {
         for p in &mut self.polys {
             p.reduce();
         }
     }
 
-    /// Inner product with accumulation: `r = sum_i(a[i] * b[i])` (NTT domain).
-    pub fn basemul_acc_montgomery(r: &mut Poly, a: &Self, b: &Self) {
-        let mut tmp = Poly::zero();
-        r.basemul_montgomery(&a.polys[0], &b.polys[0]);
-        for i in 1..K {
-            tmp.basemul_montgomery(&a.polys[i], &b.polys[i]);
-            *r += &tmp;
+    /// Compress vector with sealed compression width `D`.
+    pub fn compress<D: CompressWidth>(&self, r: &mut [u8]) {
+        for (i, p) in self.polys.iter().enumerate() {
+            p.compress::<D>(&mut r[i * D::POLY_BYTES..(i + 1) * D::POLY_BYTES]);
         }
-        r.reduce();
+    }
+
+    /// Decompress vector with sealed compression width `D`.
+    #[must_use]
+    pub fn decompress<D: CompressWidth>(a: &[u8]) -> Self {
+        let mut v = Self::zero();
+        for (i, p) in v.polys.iter_mut().enumerate() {
+            *p = Polynomial::decompress::<D>(&a[i * D::POLY_BYTES..(i + 1) * D::POLY_BYTES]);
+        }
+        v
+    }
+
+    pub fn polys(&self) -> &[Polynomial; K] {
+        &self.polys
+    }
+
+    pub fn polys_mut(&mut self) -> &mut [Polynomial; K] {
+        &mut self.polys
+    }
+}
+
+// -- NttVector (NTT domain) --------------------------------------------------
+
+impl<const K: usize> NttVector<K> {
+    #[inline]
+    #[must_use]
+    pub const fn zero() -> Self {
+        Self {
+            polys: [NttPolynomial::zero(); K],
+        }
+    }
+
+    /// Consuming inverse NTT on every polynomial.
+    #[must_use]
+    pub fn ntt_inverse(self) -> Vector<K> {
+        let polys = self.polys.map(NttPolynomial::ntt_inverse);
+        Vector { polys }
+    }
+
+    pub fn reduce(&mut self) {
+        for p in &mut self.polys {
+            p.reduce();
+        }
+    }
+
+    /// Inner product with accumulation: `sum_i(self[i] * other[i])` (NTT
+    /// domain).
+    #[must_use]
+    pub fn inner_product(&self, other: &Self) -> NttPolynomial {
+        let mut acc = self.polys[0].basemul(&other.polys[0]);
+        for i in 1..K {
+            acc += &self.polys[i].basemul(&other.polys[i]);
+        }
+        acc.reduce();
+        acc
     }
 
     /// Serialize to `K * 384` bytes (12-bit packing).
-    pub fn tobytes(&self, r: &mut [u8]) {
+    pub fn to_bytes(&self, r: &mut [u8]) {
         for (i, p) in self.polys.iter().enumerate() {
-            pack::poly_tobytes(&mut r[i * POLYBYTES..(i + 1) * POLYBYTES], &p.coeffs);
+            encode::poly_tobytes(&mut r[i * POLYBYTES..(i + 1) * POLYBYTES], p.coeffs());
         }
     }
 
     /// Deserialize from bytes.
     #[must_use]
-    pub fn frombytes(a: &[u8]) -> Self {
-        let mut pv = Self::zero();
-        for (i, p) in pv.polys.iter_mut().enumerate() {
-            pack::poly_frombytes(&mut p.coeffs, &a[i * POLYBYTES..(i + 1) * POLYBYTES]);
+    pub fn from_bytes(a: &[u8]) -> Self {
+        let mut v = Self::zero();
+        for (i, p) in v.polys.iter_mut().enumerate() {
+            *p = NttPolynomial::from_bytes(&a[i * POLYBYTES..(i + 1) * POLYBYTES]);
         }
-        pv
+        v
     }
 
-    /// Compress vector with `d_u` bits per coefficient.
-    pub fn compress(&self, r: &mut [u8], d_u: u32) {
-        let bpp = N * d_u as usize / 8;
-        for (i, p) in self.polys.iter().enumerate() {
-            let s = &mut r[i * bpp..(i + 1) * bpp];
-            match d_u {
-                10 => pack::poly_compress_d10(s, &p.coeffs),
-                11 => pack::poly_compress_d11(s, &p.coeffs),
-                _ => unreachable!(),
-            }
-        }
+    pub fn polys(&self) -> &[NttPolynomial; K] {
+        &self.polys
     }
 
-    /// Decompress vector with `d_u` bits per coefficient.
+    pub fn polys_mut(&mut self) -> &mut [NttPolynomial; K] {
+        &mut self.polys
+    }
+}
+
+/// A K x K matrix of NTT-domain polynomials (used for the public matrix A).
+pub struct NttMatrix<const K: usize> {
+    pub(crate) rows: [NttVector<K>; K],
+}
+
+impl<const K: usize> NttMatrix<K> {
+    #[inline]
     #[must_use]
-    pub fn decompress(a: &[u8], d_u: u32) -> Self {
-        let bpp = N * d_u as usize / 8;
-        let mut pv = Self::zero();
-        for (i, p) in pv.polys.iter_mut().enumerate() {
-            let s = &a[i * bpp..(i + 1) * bpp];
-            match d_u {
-                10 => pack::poly_decompress_d10(&mut p.coeffs, s),
-                11 => pack::poly_decompress_d11(&mut p.coeffs, s),
-                _ => unreachable!(),
-            }
+    pub fn zero() -> Self {
+        Self {
+            rows: core::array::from_fn(|_| NttVector::zero()),
         }
-        pv
+    }
+
+    /// Matrix-vector product: `A * v` where each row of A is dot-producted
+    /// with v, plus optional Montgomery conversion on each result.
+    #[must_use]
+    pub fn mul_vec_tomont(&self, v: &NttVector<K>) -> NttVector<K> {
+        let mut result = NttVector::zero();
+        for (r_poly, a_row) in result.polys.iter_mut().zip(self.rows.iter()) {
+            *r_poly = a_row.inner_product(v);
+            r_poly.to_mont();
+        }
+        result
+    }
+
+    /// Matrix-vector product without Montgomery conversion.
+    #[must_use]
+    pub fn mul_vec(&self, v: &NttVector<K>) -> NttVector<K> {
+        let mut result = NttVector::zero();
+        for (r_poly, a_row) in result.polys.iter_mut().zip(self.rows.iter()) {
+            *r_poly = a_row.inner_product(v);
+        }
+        result
+    }
+
+    pub fn rows_mut(&mut self) -> &mut [NttVector<K>; K] {
+        &mut self.rows
     }
 }
 
-impl<const K: usize> Default for PolyVec<K> {
-    fn default() -> Self {
-        Self::zero()
-    }
-}
+// -- Operator impls ----------------------------------------------------------
 
-impl<'b, const K: usize> ops::Add<&'b PolyVec<K>> for &PolyVec<K> {
-    type Output = PolyVec<K>;
-    fn add(self, rhs: &'b PolyVec<K>) -> PolyVec<K> {
-        let mut r = PolyVec::zero();
+impl<'b, const K: usize> ops::Add<&'b Vector<K>> for &Vector<K> {
+    type Output = Vector<K>;
+    fn add(self, rhs: &'b Vector<K>) -> Vector<K> {
+        let mut r = Vector::zero();
         for i in 0..K {
             r.polys[i] = &self.polys[i] + &rhs.polys[i];
         }
@@ -119,7 +192,7 @@ impl<'b, const K: usize> ops::Add<&'b PolyVec<K>> for &PolyVec<K> {
     }
 }
 
-impl<const K: usize> ops::AddAssign<&Self> for PolyVec<K> {
+impl<const K: usize> ops::AddAssign<&Self> for Vector<K> {
     fn add_assign(&mut self, rhs: &Self) {
         for i in 0..K {
             self.polys[i] += &rhs.polys[i];
@@ -127,45 +200,55 @@ impl<const K: usize> ops::AddAssign<&Self> for PolyVec<K> {
     }
 }
 
+impl<const K: usize> ops::AddAssign<&Self> for NttVector<K> {
+    fn add_assign(&mut self, rhs: &Self) {
+        for i in 0..K {
+            self.polys[i] += &rhs.polys[i];
+        }
+    }
+}
+
+impl<const K: usize> Default for Vector<K> {
+    fn default() -> Self {
+        Self::zero()
+    }
+}
+
+impl<const K: usize> Default for NttVector<K> {
+    fn default() -> Self {
+        Self::zero()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Q;
+    use crate::{N, Q};
 
     #[test]
     fn tobytes_frombytes_roundtrip() {
-        let mut pv = PolyVec::<3>::zero();
+        let mut v = NttVector::<3>::zero();
         for k in 0..3 {
             for i in 0..N {
-                pv.polys[k].coeffs[i] = ((k * N + i) as i16 * 7) % (Q - 1);
+                v.polys[k].0[i] = ((k * N + i) as i16 * 7) % (Q - 1);
             }
         }
         let mut buf = [0u8; 3 * POLYBYTES];
-        pv.tobytes(&mut buf);
-        let pv2 = PolyVec::<3>::frombytes(&buf);
+        v.to_bytes(&mut buf);
+        let v2 = NttVector::<3>::from_bytes(&buf);
         for k in 0..3 {
-            assert_eq!(pv.polys[k].coeffs, pv2.polys[k].coeffs, "poly {k} mismatch");
+            assert_eq!(v.polys[k].0, v2.polys[k].0, "poly {k} mismatch");
         }
     }
 
     #[test]
     fn add_zero_identity() {
-        let mut pv = PolyVec::<2>::zero();
-        pv.polys[0].coeffs[0] = 42;
-        pv.polys[1].coeffs[255] = 100;
-        let zero = PolyVec::<2>::zero();
-        let result = &pv + &zero;
-        assert_eq!(result.polys[0].coeffs[0], 42);
-        assert_eq!(result.polys[1].coeffs[255], 100);
-    }
-
-    #[test]
-    fn add_assign_works() {
-        let mut a = PolyVec::<2>::zero();
-        a.polys[0].coeffs[0] = 10;
-        let mut b = PolyVec::<2>::zero();
-        b.polys[0].coeffs[0] = 5;
-        a += &b;
-        assert_eq!(a.polys[0].coeffs[0], 15);
+        let mut v = Vector::<2>::zero();
+        v.polys[0].0[0] = 42;
+        v.polys[1].0[255] = 100;
+        let zero = Vector::<2>::zero();
+        let result = &v + &zero;
+        assert_eq!(result.polys[0].0[0], 42);
+        assert_eq!(result.polys[1].0[255], 100);
     }
 }

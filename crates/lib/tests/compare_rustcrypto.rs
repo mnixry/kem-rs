@@ -1,5 +1,5 @@
 //! Byte-for-byte comparison against the RustCrypto `ml-kem` crate.
-//! Both implement FIPS 203 — deterministic operations must produce identical
+//! Both implement FIPS 203 -- deterministic operations must produce identical
 //! output.
 
 use kem_rs::{MlKem512, MlKem768, MlKem1024, decapsulate, encapsulate_derand, keypair_derand};

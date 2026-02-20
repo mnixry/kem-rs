@@ -1,9 +1,9 @@
-//! `kem-math` — Core mathematical primitives for ML-KEM.
+//! `kem-math` -- Core mathematical primitives for ML-KEM.
 //!
 //! `no_std`, zero-allocation polynomial arithmetic over `Z_q[X]/(X^{256}+1)`.
 //! Sub-modules cover modular reduction, the Number-Theoretic Transform,
-//! polynomial and polynomial-vector arithmetic, byte-level packing and
-//! compression, deterministic sampling, and portable-SIMD kernels.
+//! domain-separated polynomial and polynomial-vector types, sealed compression
+//! traits, deterministic sampling, and portable-SIMD kernels.
 
 #![no_std]
 #![feature(portable_simd)]
@@ -15,8 +15,9 @@
     clippy::many_single_char_names
 )]
 
+pub mod compress;
+pub mod encode;
 pub mod ntt;
-pub mod pack;
 pub mod poly;
 pub mod polyvec;
 pub mod reduce;

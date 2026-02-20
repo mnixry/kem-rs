@@ -1,42 +1,40 @@
-//! Key, ciphertext, and shared-secret newtypes with RAII zeroization. Secret
-//! types zeroize on drop.
+//! ML-KEM key and ciphertext types.
+//!
+//! All types wrap typed byte arrays parameterised by [`ParameterSet`].
+//! Secret types implement `ZeroizeOnDrop` for automatic memory clearing.
 
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-use crate::params::{MlKemParams, SSBYTES};
+use crate::params::{ParameterSet, SSBYTES};
 
-/// ML-KEM public (encapsulation) key.
-pub struct PublicKey<P: MlKemParams> {
+/// ML-KEM encapsulation key (public key).
+pub struct PublicKey<P: ParameterSet> {
     pub(crate) bytes: P::PkArray,
 }
 
-impl<P, const SIZE: usize> From<[u8; SIZE]> for PublicKey<P>
-where
-    P: MlKemParams<PkArray = [u8; SIZE]>,
-{
-    #[inline]
-    fn from(bytes: [u8; SIZE]) -> Self {
-        Self { bytes }
-    }
-}
-
-impl<P: MlKemParams> From<&P::PkArray> for PublicKey<P> {
-    #[inline]
-    fn from(bytes: &P::PkArray) -> Self {
+impl<P: ParameterSet> PublicKey<P> {
+    pub fn from_bytes(bytes: &P::PkArray) -> Self {
         Self {
             bytes: bytes.clone(),
         }
     }
 }
 
-impl<P: MlKemParams> AsRef<[u8]> for PublicKey<P> {
+impl<P: ParameterSet> From<&P::PkArray> for PublicKey<P> {
+    #[inline]
+    fn from(arr: &P::PkArray) -> Self {
+        Self { bytes: arr.clone() }
+    }
+}
+
+impl<P: ParameterSet> AsRef<[u8]> for PublicKey<P> {
     #[inline]
     fn as_ref(&self) -> &[u8] {
         self.bytes.as_ref()
     }
 }
 
-impl<P: MlKemParams> Clone for PublicKey<P> {
+impl<P: ParameterSet> Clone for PublicKey<P> {
     fn clone(&self) -> Self {
         Self {
             bytes: self.bytes.clone(),
@@ -44,47 +42,43 @@ impl<P: MlKemParams> Clone for PublicKey<P> {
     }
 }
 
-impl<P: MlKemParams> core::fmt::Debug for PublicKey<P> {
+impl<P: ParameterSet> core::fmt::Debug for PublicKey<P> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("PublicKey")
-            .field("len", &P::PK_BYTES)
+            .field("len", &self.bytes.as_ref().len())
             .finish_non_exhaustive()
     }
 }
 
-/// ML-KEM secret (decapsulation) key. Zeroized on drop.
+/// ML-KEM decapsulation key (secret key).
 #[derive(Zeroize, ZeroizeOnDrop)]
-pub struct SecretKey<P: MlKemParams> {
+pub struct SecretKey<P: ParameterSet> {
     pub(crate) bytes: P::SkArray,
 }
 
-impl<P, const SIZE: usize> From<[u8; SIZE]> for SecretKey<P>
-where
-    P: MlKemParams<SkArray = [u8; SIZE]>,
-{
-    #[inline]
-    fn from(bytes: [u8; SIZE]) -> Self {
-        Self { bytes }
-    }
-}
-
-impl<P: MlKemParams> From<&P::SkArray> for SecretKey<P> {
-    #[inline]
-    fn from(bytes: &P::SkArray) -> Self {
+impl<P: ParameterSet> SecretKey<P> {
+    pub fn from_bytes(bytes: &P::SkArray) -> Self {
         Self {
             bytes: bytes.clone(),
         }
     }
 }
 
-impl<P: MlKemParams> AsRef<[u8]> for SecretKey<P> {
+impl<P: ParameterSet> From<&P::SkArray> for SecretKey<P> {
+    #[inline]
+    fn from(arr: &P::SkArray) -> Self {
+        Self { bytes: arr.clone() }
+    }
+}
+
+impl<P: ParameterSet> AsRef<[u8]> for SecretKey<P> {
     #[inline]
     fn as_ref(&self) -> &[u8] {
         self.bytes.as_ref()
     }
 }
 
-impl<P: MlKemParams> Clone for SecretKey<P> {
+impl<P: ParameterSet> Clone for SecretKey<P> {
     fn clone(&self) -> Self {
         Self {
             bytes: self.bytes.clone(),
@@ -92,44 +86,42 @@ impl<P: MlKemParams> Clone for SecretKey<P> {
     }
 }
 
-impl<P: MlKemParams> core::fmt::Debug for SecretKey<P> {
+impl<P: ParameterSet> core::fmt::Debug for SecretKey<P> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str("SecretKey([REDACTED])")
+        f.debug_struct("SecretKey")
+            .field("len", &self.bytes.as_ref().len())
+            .finish_non_exhaustive()
     }
 }
 
 /// ML-KEM ciphertext.
-pub struct Ciphertext<P: MlKemParams> {
+pub struct Ciphertext<P: ParameterSet> {
     pub(crate) bytes: P::CtArray,
 }
 
-impl<P, const SIZE: usize> From<[u8; SIZE]> for Ciphertext<P>
-where
-    P: MlKemParams<CtArray = [u8; SIZE]>,
-{
-    #[inline]
-    fn from(bytes: [u8; SIZE]) -> Self {
-        Self { bytes }
-    }
-}
-
-impl<P: MlKemParams> From<&P::CtArray> for Ciphertext<P> {
-    #[inline]
-    fn from(bytes: &P::CtArray) -> Self {
+impl<P: ParameterSet> Ciphertext<P> {
+    pub fn from_bytes(bytes: &P::CtArray) -> Self {
         Self {
             bytes: bytes.clone(),
         }
     }
 }
 
-impl<P: MlKemParams> AsRef<[u8]> for Ciphertext<P> {
+impl<P: ParameterSet> From<&P::CtArray> for Ciphertext<P> {
+    #[inline]
+    fn from(arr: &P::CtArray) -> Self {
+        Self { bytes: arr.clone() }
+    }
+}
+
+impl<P: ParameterSet> AsRef<[u8]> for Ciphertext<P> {
     #[inline]
     fn as_ref(&self) -> &[u8] {
         self.bytes.as_ref()
     }
 }
 
-impl<P: MlKemParams> Clone for Ciphertext<P> {
+impl<P: ParameterSet> Clone for Ciphertext<P> {
     fn clone(&self) -> Self {
         Self {
             bytes: self.bytes.clone(),
@@ -137,24 +129,24 @@ impl<P: MlKemParams> Clone for Ciphertext<P> {
     }
 }
 
-impl<P: MlKemParams> core::fmt::Debug for Ciphertext<P> {
+impl<P: ParameterSet> core::fmt::Debug for Ciphertext<P> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("Ciphertext")
-            .field("len", &P::CT_BYTES)
+            .field("len", &self.bytes.as_ref().len())
             .finish_non_exhaustive()
     }
 }
 
-/// Shared secret (always 32 bytes). Zeroized on drop.
+/// ML-KEM shared secret (32 bytes).
 #[derive(Clone, Zeroize, ZeroizeOnDrop)]
 pub struct SharedSecret {
     pub(crate) bytes: [u8; SSBYTES],
 }
 
-impl From<[u8; SSBYTES]> for SharedSecret {
+impl From<&[u8; SSBYTES]> for SharedSecret {
     #[inline]
-    fn from(bytes: [u8; SSBYTES]) -> Self {
-        Self { bytes }
+    fn from(arr: &[u8; SSBYTES]) -> Self {
+        Self { bytes: *arr }
     }
 }
 
@@ -167,6 +159,6 @@ impl AsRef<[u8]> for SharedSecret {
 
 impl core::fmt::Debug for SharedSecret {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str("SharedSecret([REDACTED])")
+        f.debug_struct("SharedSecret").finish_non_exhaustive()
     }
 }

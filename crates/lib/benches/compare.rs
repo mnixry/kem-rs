@@ -21,7 +21,7 @@ fn enc_coins(tag: u8) -> [u8; 32] {
     core::array::from_fn(|i| (i as u8).wrapping_add(tag.wrapping_mul(53)))
 }
 
-fn bench_param_set<P: kem_rs::MlKemParams, RC: KemCore>(c: &mut Criterion, tag: u8) {
+fn bench_param_set<P: kem_rs::ParameterSet, RC: KemCore>(c: &mut Criterion, tag: u8) {
     let mut g = c.benchmark_group(std::any::type_name::<P>());
     let (d, z, full) = keygen_coins(tag);
     let m = enc_coins(tag);

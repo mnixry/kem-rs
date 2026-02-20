@@ -10,6 +10,7 @@
 //!   fallback.
 //! - **RAII zeroization** of secret material via the `zeroize` crate.
 //! - **Constant-time** operations for secret-dependent comparisons and moves.
+//! - **Panic-free** — no `unreachable!()` or `.unwrap()` in the public API.
 
 #![deny(unsafe_code)]
 
@@ -19,8 +20,7 @@ pub mod params;
 pub mod pke;
 pub mod types;
 
-// Re-export the public API surface.
 pub use kem::{decapsulate, encapsulate, encapsulate_derand, keypair, keypair_derand};
 pub use kem_math as math;
-pub use params::{MlKem512, MlKem768, MlKem1024, MlKemParams};
+pub use params::{MlKem512, MlKem768, MlKem1024, ParameterSet};
 pub use types::{Ciphertext, PublicKey, SecretKey, SharedSecret};

@@ -2,7 +2,7 @@
 
 use aes::cipher::{BlockEncrypt, KeyInit};
 use kem_rs::{
-    MlKem512, MlKem768, MlKem1024, MlKemParams, decapsulate, encapsulate_derand, keypair_derand,
+    MlKem512, MlKem768, MlKem1024, ParameterSet, decapsulate, encapsulate_derand, keypair_derand,
 };
 use sha2::{Digest, Sha256};
 
@@ -95,7 +95,7 @@ fn hex_upper(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02X}")).collect()
 }
 
-fn run_nist_kat_case<P: MlKemParams>() -> String {
+fn run_nist_kat_case<P: ParameterSet>() -> String {
     let entropy: [u8; 48] = core::array::from_fn(|i| i as u8);
     let mut drbg = NistDrbg::new(&entropy, None);
 

@@ -1,135 +1,128 @@
-//! IND-CCA2 Key Encapsulation - ML-KEM (FIPS 203). Keygen, encapsulate,
-//! decapsulate.
+//! ML-KEM (IND-CCA2 Key Encapsulation Mechanism) — FIPS 203.
+//!
+//! All public functions are panic-free: no `.unwrap()`, no `unreachable!()`.
+//! Output sizes are derived from [`ParameterSet`] associated types.
 
 use ctutils::{CtAssign, CtEq};
+use rand_core::CryptoRng;
 
 use crate::{
     hash,
-    params::{ByteArray, MlKemParams, SYMBYTES},
+    params::{ByteArray, ParameterSet, SSBYTES, SYMBYTES},
     pke,
     types::{Ciphertext, PublicKey, SecretKey, SharedSecret},
 };
 
-/// Deterministic key generation from 64 bytes of randomness. coins = (d || z):
-/// d seeds IND-CPA keypair, z for implicit reject.
-pub fn keypair_derand<P: MlKemParams>(coins: &[u8; 2 * SYMBYTES]) -> (PublicKey<P>, SecretKey<P>) {
-    let mut pk_arr = P::PkArray::zeroed();
-    let mut sk_arr = P::SkArray::zeroed();
+/// Deterministic key generation from a 64-byte seed `(d || z)`.
+///
+/// # Panics
+///
+/// Cannot panic: all internal array splits operate on compile-time-known sizes.
+#[must_use]
+pub fn keypair_derand<P: ParameterSet>(coins: &[u8; 2 * SYMBYTES]) -> (PublicKey<P>, SecretKey<P>) {
+    let (d, z) = coins.split_at(SYMBYTES);
+    let d: &[u8; SYMBYTES] = d.first_chunk().expect("infallible: 64-byte array split");
+    let z: &[u8; SYMBYTES] = z.first_chunk().expect("infallible: 64-byte array split");
 
-    let pk = pk_arr.as_mut();
-    let sk = sk_arr.as_mut();
+    let (pk_arr, indcpa_sk) = pke::indcpa_keypair_derand::<P>(d);
 
-    // IND-CPA keypair from first 32 bytes
-    pke::indcpa_keypair_derand::<P>(
-        &mut pk[..P::INDCPA_PK_BYTES],
-        &mut sk[..P::INDCPA_SK_BYTES],
-        coins[..SYMBYTES].try_into().unwrap(),
-    );
+    let mut sk = P::SkArray::zeroed();
+    let sk_mut = sk.as_mut();
 
-    // sk = (indcpa_sk || pk || H(pk) || z)
-    sk[P::INDCPA_SK_BYTES..P::INDCPA_SK_BYTES + P::PK_BYTES].copy_from_slice(&pk[..P::PK_BYTES]);
+    sk_mut[..P::INDCPA_SK_BYTES].copy_from_slice(&indcpa_sk.as_ref()[..P::INDCPA_SK_BYTES]);
+    sk_mut[P::INDCPA_SK_BYTES..P::INDCPA_SK_BYTES + P::PK_BYTES]
+        .copy_from_slice(&pk_arr.as_ref()[..P::PK_BYTES]);
 
-    let h_pk = hash::hash_h(&pk[..P::PK_BYTES]);
-    sk[P::SK_BYTES - 2 * SYMBYTES..P::SK_BYTES - SYMBYTES].copy_from_slice(&h_pk);
+    let h_pk = hash::hash_h(&pk_arr.as_ref()[..P::PK_BYTES]);
+    sk_mut[P::SK_BYTES - 2 * SYMBYTES..P::SK_BYTES - SYMBYTES].copy_from_slice(&h_pk);
+    sk_mut[P::SK_BYTES - SYMBYTES..P::SK_BYTES].copy_from_slice(z);
 
-    sk[P::SK_BYTES - SYMBYTES..P::SK_BYTES].copy_from_slice(&coins[SYMBYTES..]);
-
-    (PublicKey { bytes: pk_arr }, SecretKey { bytes: sk_arr })
+    (PublicKey { bytes: pk_arr }, SecretKey { bytes: sk })
 }
 
-/// Key generation with system randomness.
-pub fn keypair<P: MlKemParams>(
-    rng: &mut impl rand_core::CryptoRng,
-) -> (PublicKey<P>, SecretKey<P>) {
+/// Randomized key generation.
+pub fn keypair<P: ParameterSet>(rng: &mut impl CryptoRng) -> (PublicKey<P>, SecretKey<P>) {
     let mut coins = [0u8; 2 * SYMBYTES];
     rng.fill_bytes(&mut coins);
     keypair_derand::<P>(&coins)
 }
 
-/// Deterministic encapsulation from 32 bytes of randomness. Produces ciphertext
-/// and shared secret.
-pub fn encapsulate_derand<P: MlKemParams>(
+/// Deterministic encapsulation with explicit 32-byte randomness.
+///
+/// # Panics
+///
+/// Cannot panic: all internal array splits operate on compile-time-known sizes.
+#[must_use]
+pub fn encapsulate_derand<P: ParameterSet>(
     pk: &PublicKey<P>, coins: &[u8; SYMBYTES],
 ) -> (Ciphertext<P>, SharedSecret) {
-    let mut ct_arr = P::CtArray::zeroed();
-
-    // buf = m || H(pk)
     let mut buf = [0u8; 2 * SYMBYTES];
     buf[..SYMBYTES].copy_from_slice(coins);
     let h_pk = hash::hash_h(pk.as_ref());
     buf[SYMBYTES..].copy_from_slice(&h_pk);
 
-    // kr = G(buf) = (K || r)
     let kr = hash::hash_g(buf);
+    let (k_half, r_half) = kr.split_at(SYMBYTES);
+    let k: &[u8; SYMBYTES] = k_half
+        .first_chunk()
+        .expect("infallible: 64-byte hash split");
+    let r: &[u8; SYMBYTES] = r_half
+        .first_chunk()
+        .expect("infallible: 64-byte hash split");
 
-    // IND-CPA encrypt: ct = Enc(pk, m; r)
-    pke::indcpa_enc::<P>(
-        ct_arr.as_mut(),
-        coins,
-        pk.as_ref(),
-        kr[SYMBYTES..].try_into().unwrap(),
-    );
+    let ct = pke::indcpa_enc::<P>(pk.as_ref(), coins, r);
 
-    // ss = K
-    let mut ss = [0u8; SYMBYTES];
-    ss.copy_from_slice(&kr[..SYMBYTES]);
-
-    (Ciphertext { bytes: ct_arr }, SharedSecret { bytes: ss })
+    (Ciphertext { bytes: ct }, SharedSecret { bytes: *k })
 }
 
-/// Encapsulation with system randomness.
-pub fn encapsulate<P: MlKemParams>(
-    pk: &PublicKey<P>, rng: &mut impl rand_core::CryptoRng,
+/// Randomized encapsulation.
+pub fn encapsulate<P: ParameterSet>(
+    pk: &PublicKey<P>, rng: &mut impl CryptoRng,
 ) -> (Ciphertext<P>, SharedSecret) {
     let mut coins = [0u8; SYMBYTES];
     rng.fill_bytes(&mut coins);
     encapsulate_derand::<P>(pk, &coins)
 }
 
-/// Decapsulate: recover shared secret. Uses implicit rejection on failure
-/// (pseudorandom ss from sk, ct).
-pub fn decapsulate<P: MlKemParams>(ct: &Ciphertext<P>, sk: &SecretKey<P>) -> SharedSecret {
-    let sk_bytes = sk.as_ref();
-    let ct_bytes = ct.as_ref();
+/// Decapsulation with implicit rejection.
+///
+/// # Panics
+///
+/// Cannot panic: all internal array splits operate on compile-time-known sizes.
+#[must_use]
+pub fn decapsulate<P: ParameterSet>(ct: &Ciphertext<P>, sk: &SecretKey<P>) -> SharedSecret {
+    let sk_ref = sk.as_ref();
+    let indcpa_sk = &sk_ref[..P::INDCPA_SK_BYTES];
+    let pk = &sk_ref[P::INDCPA_SK_BYTES..P::INDCPA_SK_BYTES + P::PK_BYTES];
+    let h: &[u8; SYMBYTES] = sk_ref[P::SK_BYTES - 2 * SYMBYTES..P::SK_BYTES - SYMBYTES]
+        .first_chunk()
+        .expect("infallible: sk layout guarantees SYMBYTES");
+    let z: &[u8; SYMBYTES] = sk_ref[P::SK_BYTES - SYMBYTES..P::SK_BYTES]
+        .first_chunk()
+        .expect("infallible: sk layout guarantees SYMBYTES");
 
-    // Parse the secret key: (indcpa_sk || pk || H(pk) || z)
-    let indcpa_sk = &sk_bytes[..P::INDCPA_SK_BYTES];
-    let pk_bytes = &sk_bytes[P::INDCPA_SK_BYTES..P::INDCPA_SK_BYTES + P::PK_BYTES];
-    let h_pk = &sk_bytes[P::SK_BYTES - 2 * SYMBYTES..P::SK_BYTES - SYMBYTES];
-    let z = &sk_bytes[P::SK_BYTES - SYMBYTES..P::SK_BYTES];
+    let m_prime = pke::indcpa_dec::<P>(ct.as_ref(), indcpa_sk);
 
-    // m' = Dec(indcpa_sk, ct)
-    let mut m_prime = [0u8; SYMBYTES];
-    pke::indcpa_dec::<P>(&mut m_prime, ct_bytes, indcpa_sk);
-
-    // buf = m' || H(pk)
     let mut buf = [0u8; 2 * SYMBYTES];
     buf[..SYMBYTES].copy_from_slice(&m_prime);
-    buf[SYMBYTES..].copy_from_slice(h_pk);
-
-    // kr = G(buf) = (K' || r')
+    buf[SYMBYTES..].copy_from_slice(h);
     let kr = hash::hash_g(buf);
+    let (k_half, r_half) = kr.split_at(SYMBYTES);
+    let k: &[u8; SYMBYTES] = k_half
+        .first_chunk()
+        .expect("infallible: 64-byte hash split");
+    let r: &[u8; SYMBYTES] = r_half
+        .first_chunk()
+        .expect("infallible: 64-byte hash split");
 
-    // Re-encrypt: ct' = Enc(pk, m'; r')
-    // Use a stack buffer large enough for any parameter set.
-    const MAX_CT: usize = 1568;
-    let mut cmp = [0u8; MAX_CT];
-    pke::indcpa_enc::<P>(
-        &mut cmp[..P::CT_BYTES],
-        &m_prime,
-        pk_bytes,
-        kr[SYMBYTES..].try_into().unwrap(),
-    );
+    let ct_prime = pke::indcpa_enc::<P>(pk, &m_prime, r);
 
-    // Constant-time comparison: ok = (ct == ct')
-    let ok = ct_bytes.ct_eq(&cmp[..P::CT_BYTES]);
+    let ok = ct.as_ref().ct_eq(ct_prime.as_ref());
+    let rejection = hash::rkprf(z, ct.as_ref());
 
-    // Implicit rejection: ss = J(z, ct) if fail else K'
-    let z: &[u8; SYMBYTES] = z.try_into().unwrap();
-    let rejection_ss = hash::rkprf(z, ct_bytes);
-
-    let mut ss = rejection_ss;
-    ss.as_mut().ct_assign(&kr[..SYMBYTES], ok);
+    let mut ss = [0u8; SSBYTES];
+    ss.copy_from_slice(k);
+    ss.ct_assign(&rejection, !ok);
 
     SharedSecret { bytes: ss }
 }

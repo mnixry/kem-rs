@@ -1,14 +1,49 @@
-//! Deterministic sampling: CBD noise ([`cbd2`], [`cbd3`]) and rejection-uniform
-//! ([`rej_uniform`]).
+//! Deterministic sampling: sealed CBD noise traits and rejection-uniform.
 
 use crate::{N, Q};
 
-/// SHAKE-128 output rate in bytes (one Keccak-f[1600] squeeze).
+mod sealed {
+    pub trait Sealed {}
+}
+
+/// Sealed trait for CBD noise sampling width.
+pub trait CbdWidth: sealed::Sealed {
+    const ETA: usize;
+    const BUF_BYTES: usize;
+
+    fn sample(r: &mut [i16; N], buf: &[u8]);
+}
+
+pub struct Eta2;
+pub struct Eta3;
+
+impl sealed::Sealed for Eta2 {}
+impl sealed::Sealed for Eta3 {}
+
+impl CbdWidth for Eta2 {
+    const ETA: usize = 2;
+    const BUF_BYTES: usize = 2 * N / 4;
+
+    #[inline]
+    fn sample(r: &mut [i16; N], buf: &[u8]) {
+        cbd2(r, buf);
+    }
+}
+
+impl CbdWidth for Eta3 {
+    const ETA: usize = 3;
+    const BUF_BYTES: usize = 3 * N / 4;
+
+    #[inline]
+    fn sample(r: &mut [i16; N], buf: &[u8]) {
+        cbd3(r, buf);
+    }
+}
+
 pub const SHAKE128_RATE: usize = 168;
 
-/// CBD with eta=2: 128 bytes of PRF output -> 256 coefficients in {-2, ..., 2}.
 pub fn cbd2(r: &mut [i16; N], buf: &[u8]) {
-    debug_assert!(buf.len() >= 2 * N / 4); // 128 bytes
+    debug_assert!(buf.len() >= 2 * N / 4);
     for i in 0..N / 8 {
         let t = u32::from_le_bytes([buf[4 * i], buf[4 * i + 1], buf[4 * i + 2], buf[4 * i + 3]]);
         let d = (t & 0x5555_5555) + ((t >> 1) & 0x5555_5555);
@@ -20,9 +55,8 @@ pub fn cbd2(r: &mut [i16; N], buf: &[u8]) {
     }
 }
 
-/// CBD with eta=3: 192 bytes of PRF output -> 256 coefficients in {-3, ..., 3}.
 pub fn cbd3(r: &mut [i16; N], buf: &[u8]) {
-    debug_assert!(buf.len() >= 3 * N / 4); // 192 bytes
+    debug_assert!(buf.len() >= 3 * N / 4);
     for i in 0..N / 4 {
         let t = u32::from_le_bytes([buf[3 * i], buf[3 * i + 1], buf[3 * i + 2], 0]) & 0x00FF_FFFF;
         let d = (t & 0x0024_9249) + ((t >> 1) & 0x0024_9249) + ((t >> 2) & 0x0024_9249);
@@ -34,9 +68,6 @@ pub fn cbd3(r: &mut [i16; N], buf: &[u8]) {
     }
 }
 
-/// Rejection-sample N uniformly random coefficients in [0, q) from an XOF
-/// source. The `fill` closure is called repeatedly with a buffer to fill with
-/// fresh pseudorandom bytes. Returns N.
 pub fn rej_uniform(r: &mut [i16; N], mut fill: impl FnMut(&mut [u8])) -> usize {
     let mut ctr = 0;
     let mut buf = [0u8; SHAKE128_RATE];
@@ -69,7 +100,7 @@ mod tests {
     fn cbd2_output_range() {
         let buf = [0xA5u8; 128];
         let mut r = [0i16; N];
-        cbd2(&mut r, &buf);
+        Eta2::sample(&mut r, &buf);
         for &c in &r {
             assert!(
                 (-2..=2).contains(&c),
@@ -82,7 +113,7 @@ mod tests {
     fn cbd3_output_range() {
         let buf = [0x5Au8; 192];
         let mut r = [0i16; N];
-        cbd3(&mut r, &buf);
+        Eta3::sample(&mut r, &buf);
         for &c in &r {
             assert!(
                 (-3..=3).contains(&c),

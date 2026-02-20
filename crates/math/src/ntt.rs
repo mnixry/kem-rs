@@ -4,7 +4,6 @@
 //! - `invntt`: inverse NTT with Montgomery scaling.
 //! - `basemul`: degree-1 multiplication in the NTT domain.
 
-use super::reduce::fqmul;
 use crate::N;
 
 /// Twiddle factors in Montgomery form, from primitive 512th root zeta=17,
@@ -57,21 +56,10 @@ pub fn invntt(r: &mut [i16; N]) {
     crate::simd::poly_fqmul_scalar(r, F);
 }
 
-/// Base multiply two degree-1 polys in `Z_q[X]/(X^2 - zeta)`.
-/// `r = a * b mod (X^2 - zeta)`.
-#[inline]
-pub const fn basemul(r: &mut [i16; 2], a: &[i16; 2], b: &[i16; 2], zeta: i16) {
-    r[0] = fqmul(a[1], b[1]);
-    r[0] = fqmul(r[0], zeta);
-    r[0] += fqmul(a[0], b[0]);
-    r[1] = fqmul(a[0], b[1]);
-    r[1] += fqmul(a[1], b[0]);
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::reduce::barrett_reduce;
+    use crate::reduce::{barrett_reduce, fqmul};
 
     #[test]
     fn ntt_invntt_roundtrip() {
@@ -84,7 +72,6 @@ mod tests {
         assert_ne!(a, original, "NTT should change coefficients");
         invntt(&mut a);
 
-        // invntt(ntt(a))[i] = a[i] * R mod q; undo with fqmul(c, 1) = c * R^{-1}
         for c in &mut a {
             *c = barrett_reduce(fqmul(*c, 1));
         }
@@ -126,26 +113,23 @@ mod tests {
 
     #[test]
     fn ntt_basemul_matches_schoolbook() {
-        use crate::poly::Poly;
+        use crate::poly::Polynomial;
 
-        let mut a = Poly::zero();
-        let mut b = Poly::zero();
+        let mut a = Polynomial::zero();
+        let mut b = Polynomial::zero();
         for i in 0..N {
-            a.coeffs[i] = ((i * 7 + 3) % 100) as i16;
-            b.coeffs[i] = ((i * 13 + 1) % 100) as i16;
+            a.0[i] = ((i * 7 + 3) % 100) as i16;
+            b.0[i] = ((i * 13 + 1) % 100) as i16;
         }
-        let expected = schoolbook_mul(&a.coeffs, &b.coeffs);
+        let expected = schoolbook_mul(&a.0, &b.0);
 
-        let mut a_ntt = a;
-        let mut b_ntt = b;
-        a_ntt.ntt();
-        b_ntt.ntt();
+        let a_ntt = a.ntt();
+        let b_ntt = b.ntt();
 
-        let mut c_ntt = Poly::zero();
-        c_ntt.basemul_montgomery(&a_ntt, &b_ntt);
-        c_ntt.invntt_tomont();
+        let c_ntt = a_ntt.basemul(&b_ntt);
+        let c = c_ntt.ntt_inverse();
 
-        for (i, (&got_raw, &exp)) in c_ntt.coeffs.iter().zip(expected.iter()).enumerate() {
+        for (i, (&got_raw, &exp)) in c.coeffs().iter().zip(expected.iter()).enumerate() {
             let got = normalise(got_raw);
             assert_eq!(got, exp, "mismatch at {i}: got {got}, expected {exp}");
         }

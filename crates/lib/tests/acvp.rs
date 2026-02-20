@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use kem_rs::{
-    Ciphertext, MlKem512, MlKem768, MlKem1024, MlKemParams, PublicKey, SecretKey, decapsulate,
+    Ciphertext, MlKem512, MlKem768, MlKem1024, ParameterSet, PublicKey, SecretKey, decapsulate,
     encapsulate_derand,
     hash::hash_h,
     keypair_derand,
@@ -63,7 +63,7 @@ struct TestVectorSet<G> {
 }
 
 #[derive(Clone, Copy, Deserialize)]
-enum ParameterSet {
+enum ParameterSetName {
     #[serde(rename = "ML-KEM-512")]
     MlKem512,
     #[serde(rename = "ML-KEM-768")]
@@ -72,7 +72,7 @@ enum ParameterSet {
     MlKem1024,
 }
 
-impl ParameterSet {
+impl ParameterSetName {
     fn run<T>(
         self, f512: impl FnOnce() -> T, f768: impl FnOnce() -> T, f1024: impl FnOnce() -> T,
     ) -> T {
@@ -100,7 +100,7 @@ enum EncapFunction {
 #[serde(rename_all = "camelCase")]
 struct KeygenPromptGroup {
     tg_id: u64,
-    parameter_set: ParameterSet,
+    parameter_set: ParameterSetName,
     tests: Vec<KeygenPromptTest>,
 }
 
@@ -131,7 +131,7 @@ struct KeygenExpectedTest {
 #[serde(rename_all = "camelCase")]
 struct EncapPromptGroup {
     tg_id: u64,
-    parameter_set: ParameterSet,
+    parameter_set: ParameterSetName,
     function: EncapFunction,
     tests: Vec<EncapPromptTest>,
 }
@@ -188,7 +188,7 @@ fn to_byte_array<A: ByteArray>(bytes: &[u8], expected_len: usize) -> A {
     out
 }
 
-fn run_keygen_case<P: MlKemParams>(
+fn run_keygen_case<P: ParameterSet>(
     d: &[u8; SYMBYTES], z: &[u8; SYMBYTES], expected_ek: &[u8], expected_dk: &[u8],
 ) {
     let mut coins = [0u8; 2 * SYMBYTES];
@@ -200,7 +200,7 @@ fn run_keygen_case<P: MlKemParams>(
     assert_eq!(dk.as_ref(), expected_dk);
 }
 
-fn run_encapsulation_case<P: MlKemParams>(
+fn run_encapsulation_case<P: ParameterSet>(
     ek: &[u8], m: &[u8; SYMBYTES], expected_c: &[u8], expected_k: &[u8; SYMBYTES],
 ) {
     let ek_arr = to_byte_array::<P::PkArray>(ek, P::PK_BYTES);
@@ -211,7 +211,7 @@ fn run_encapsulation_case<P: MlKemParams>(
     assert_eq!(k.as_ref(), expected_k);
 }
 
-fn run_decapsulation_case<P: MlKemParams>(dk: &[u8], c: &[u8], expected_k: &[u8; SYMBYTES]) {
+fn run_decapsulation_case<P: ParameterSet>(dk: &[u8], c: &[u8], expected_k: &[u8; SYMBYTES]) {
     let dk_arr = to_byte_array::<P::SkArray>(dk, P::SK_BYTES);
     let c_arr = to_byte_array::<P::CtArray>(c, P::CT_BYTES);
     let dk = SecretKey::<P>::from(&dk_arr);
@@ -220,7 +220,7 @@ fn run_decapsulation_case<P: MlKemParams>(dk: &[u8], c: &[u8], expected_k: &[u8;
     assert_eq!(k.as_ref(), expected_k);
 }
 
-fn encapsulation_key_check<P: MlKemParams>(ek: &[u8]) -> bool {
+fn encapsulation_key_check<P: ParameterSet>(ek: &[u8]) -> bool {
     if ek.len() != P::PK_BYTES {
         return false;
     }
@@ -240,7 +240,7 @@ fn encapsulation_key_check<P: MlKemParams>(ek: &[u8]) -> bool {
     chunks.remainder().is_empty()
 }
 
-fn decapsulation_key_check<P: MlKemParams>(dk: &[u8]) -> bool {
+fn decapsulation_key_check<P: ParameterSet>(dk: &[u8]) -> bool {
     if dk.len() != P::SK_BYTES {
         return false;
     }
