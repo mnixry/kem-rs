@@ -5,9 +5,6 @@ use crate::Q;
 /// q^{-1} mod 2^{16} (Montgomery inverse).
 pub const QINV: i16 = -3327;
 
-/// 2^{16} mod q (Montgomery radix residue).
-pub const MONT: i16 = -1044;
-
 /// Montgomery reduction: computes `a * R^{-1} mod q` where R = 2^{16}.
 ///
 /// Input: `a in {-q*2^{15}, ..., q*2^{15} - 1}`. Output: `r in {-q+1, ...,
@@ -41,6 +38,9 @@ pub const fn fqmul(a: i16, b: i16) -> i16 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 2^{16} mod q (Montgomery radix residue).
+    const MONT: i16 = -1044;
 
     #[test]
     fn montgomery_reduce_of_zero() {

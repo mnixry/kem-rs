@@ -10,28 +10,40 @@ mod sealed {
     pub trait Sealed {}
 }
 
-pub trait CompressWidth: sealed::Sealed {
+pub trait CompressWidthParams: sealed::Sealed {
     const D: u32;
     const POLY_BYTES: usize;
+}
 
+pub trait CompressWidth: CompressWidthParams {
     fn compress_poly(r: &mut [u8], coeffs: &[i16; N]);
     fn decompress_poly(coeffs: &mut [i16; N], a: &[u8]);
 }
 
-pub struct D1;
-pub struct D4;
-pub struct D5;
-pub struct D10;
-pub struct D11;
+macro_rules! compress_width {
+    ($($name:ident: $d:expr, $poly_bytes:expr),*) => {
+        $(
+            pub struct $name;
+            impl sealed::Sealed for $name {}
+            impl CompressWidthParams for $name {
+                const D: u32 = $d;
+                const POLY_BYTES: usize = $poly_bytes;
+            }
+        )*
+    };
+}
 
-impl sealed::Sealed for D1 {}
-impl sealed::Sealed for D4 {}
-impl sealed::Sealed for D5 {}
-impl sealed::Sealed for D10 {}
-impl sealed::Sealed for D11 {}
+compress_width!(
+    D1: 1, SYMBYTES,
+    D4: 4, 128,
+    D5: 5, 160,
+    D10: 10, 320,
+    D11: 11, 352
+);
 
 #[inline]
-pub const fn csubq(a: i16) -> u16 {
+#[must_use]
+pub(crate) const fn csubq(a: i16) -> u16 {
     let mut t = a as u16;
     t = t.wrapping_add(((a >> 15) as u16) & (Q as u16));
     t
@@ -51,9 +63,6 @@ const fn decompress_coeff(y: u16, d: u32) -> u16 {
 // -- D1: message encode/decode -----------------------------------------------
 
 impl CompressWidth for D1 {
-    const D: u32 = 1;
-    const POLY_BYTES: usize = SYMBYTES;
-
     fn compress_poly(r: &mut [u8], a: &[i16; N]) {
         for i in 0..N / 8 {
             r[i] = 0;
@@ -79,9 +88,6 @@ impl CompressWidth for D1 {
 // -- D4: ML-KEM-512/768 Dv --------------------------------------------------
 
 impl CompressWidth for D4 {
-    const D: u32 = 4;
-    const POLY_BYTES: usize = 128;
-
     fn compress_poly(r: &mut [u8], a: &[i16; N]) {
         for i in 0..N / 2 {
             let t0 = compress_coeff(csubq(a[2 * i]), 4) as u8;
@@ -101,9 +107,6 @@ impl CompressWidth for D4 {
 // -- D5: ML-KEM-1024 Dv -----------------------------------------------------
 
 impl CompressWidth for D5 {
-    const D: u32 = 5;
-    const POLY_BYTES: usize = 160;
-
     fn compress_poly(r: &mut [u8], a: &[i16; N]) {
         for i in 0..N / 8 {
             let t: [u8; 8] = core::array::from_fn(|j| compress_coeff(csubq(a[8 * i + j]), 5) as u8);
@@ -133,9 +136,6 @@ impl CompressWidth for D5 {
 // -- D10: ML-KEM-512/768 Du -------------------------------------------------
 
 impl CompressWidth for D10 {
-    const D: u32 = 10;
-    const POLY_BYTES: usize = 320;
-
     fn compress_poly(r: &mut [u8], a: &[i16; N]) {
         for i in 0..N / 4 {
             let t: [u16; 4] = core::array::from_fn(|j| compress_coeff(csubq(a[4 * i + j]), 10));
@@ -163,9 +163,6 @@ impl CompressWidth for D10 {
 // -- D11: ML-KEM-1024 Du ----------------------------------------------------
 
 impl CompressWidth for D11 {
-    const D: u32 = 11;
-    const POLY_BYTES: usize = 352;
-
     fn compress_poly(r: &mut [u8], a: &[i16; N]) {
         for i in 0..N / 8 {
             let t: [u16; 8] = core::array::from_fn(|j| compress_coeff(csubq(a[8 * i + j]), 11));

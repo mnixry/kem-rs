@@ -15,14 +15,15 @@
     clippy::many_single_char_names
 )]
 
+mod encode;
+mod ntt;
+mod reduce;
+mod simd;
+
 pub mod compress;
-pub mod encode;
-pub mod ntt;
 pub mod poly;
 pub mod polyvec;
-pub mod reduce;
 pub mod sample;
-pub mod simd;
 
 /// Polynomial ring degree.
 pub const N: usize = 256;

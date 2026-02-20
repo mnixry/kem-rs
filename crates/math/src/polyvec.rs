@@ -67,11 +67,13 @@ impl<const K: usize> Vector<K> {
         v
     }
 
-    pub fn polys(&self) -> &[Polynomial; K] {
+    #[must_use]
+    pub const fn polys(&self) -> &[Polynomial; K] {
         &self.polys
     }
 
-    pub fn polys_mut(&mut self) -> &mut [Polynomial; K] {
+    #[must_use]
+    pub const fn polys_mut(&mut self) -> &mut [Polynomial; K] {
         &mut self.polys
     }
 }
@@ -115,7 +117,7 @@ impl<const K: usize> NttVector<K> {
     /// Serialize to `K * 384` bytes (12-bit packing).
     pub fn to_bytes(&self, r: &mut [u8]) {
         for (i, p) in self.polys.iter().enumerate() {
-            encode::poly_tobytes(&mut r[i * POLYBYTES..(i + 1) * POLYBYTES], p.coeffs());
+            encode::coeffs_to_bytes(&mut r[i * POLYBYTES..(i + 1) * POLYBYTES], p.coeffs());
         }
     }
 
@@ -129,11 +131,13 @@ impl<const K: usize> NttVector<K> {
         v
     }
 
-    pub fn polys(&self) -> &[NttPolynomial; K] {
+    #[must_use]
+    pub const fn polys(&self) -> &[NttPolynomial; K] {
         &self.polys
     }
 
-    pub fn polys_mut(&mut self) -> &mut [NttPolynomial; K] {
+    #[must_use]
+    pub const fn polys_mut(&mut self) -> &mut [NttPolynomial; K] {
         &mut self.polys
     }
 }
@@ -174,7 +178,8 @@ impl<const K: usize> NttMatrix<K> {
         result
     }
 
-    pub fn rows_mut(&mut self) -> &mut [NttVector<K>; K] {
+    #[must_use]
+    pub const fn rows_mut(&mut self) -> &mut [NttVector<K>; K] {
         &mut self.rows
     }
 }

@@ -21,7 +21,7 @@ pub(crate) fn indcpa_keypair_derand<P: ParameterSet>(
     let mut g_input = [0u8; SYMBYTES + 1];
     g_input[..SYMBYTES].copy_from_slice(coins);
     g_input[SYMBYTES] = P::K as u8;
-    let buf = hash::hash_g(&g_input);
+    let buf = hash::hash_g(g_input);
     let public_seed: &[u8; SYMBYTES] = buf[..SYMBYTES].first_chunk().expect("buf is 64 bytes");
     let noise_seed: &[u8; SYMBYTES] = buf[SYMBYTES..].first_chunk().expect("buf is 64 bytes");
 

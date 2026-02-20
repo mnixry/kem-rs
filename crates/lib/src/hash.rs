@@ -29,7 +29,8 @@ pub fn hash_g(input: impl AsRef<[u8]>) -> [u8; 64] {
     Sha3_512::digest(input).into()
 }
 
-/// PRF_eta(seed, nonce) = SHAKE-256(seed || nonce), squeezed to fill output.
+/// `PRF_eta(seed, nonce) = SHAKE-256(seed || nonce)`, squeezed to fill
+/// `output`.
 pub fn prf(seed: impl AsRef<[u8]>, nonce: u8, output: &mut [u8]) {
     Shake256::default()
         .chain(seed)

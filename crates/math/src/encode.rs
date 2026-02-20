@@ -5,7 +5,7 @@ use crate::{
     compress::{CompressWidth, D1, csubq},
 };
 
-pub fn poly_tobytes(r: &mut [u8], a: &[i16; N]) {
+pub fn coeffs_to_bytes(r: &mut [u8], a: &[i16; N]) {
     debug_assert!(r.len() >= POLYBYTES);
     for i in 0..N / 2 {
         let t0 = csubq(a[2 * i]);
@@ -16,7 +16,7 @@ pub fn poly_tobytes(r: &mut [u8], a: &[i16; N]) {
     }
 }
 
-pub fn poly_frombytes(r: &mut [i16; N], a: &[u8]) {
+pub fn bytes_to_coeffs(r: &mut [i16; N], a: &[u8]) {
     debug_assert!(a.len() >= POLYBYTES);
     for i in 0..N / 2 {
         r[2 * i] = ((a[3 * i] as u16) | (((a[3 * i + 1] as u16) & 0x0F) << 8)) as i16;
@@ -24,12 +24,12 @@ pub fn poly_frombytes(r: &mut [i16; N], a: &[u8]) {
     }
 }
 
-pub fn poly_frommsg(r: &mut [i16; N], msg: &[u8; SYMBYTES]) {
-    D1::decompress_poly(r, msg);
+pub fn coeffs_to_message(msg: &mut [u8; SYMBYTES], a: &[i16; N]) {
+    D1::compress_poly(msg, a);
 }
 
-pub fn poly_tomsg(msg: &mut [u8; SYMBYTES], a: &[i16; N]) {
-    D1::compress_poly(msg, a);
+pub fn message_to_coeffs(r: &mut [i16; N], msg: &[u8; SYMBYTES]) {
+    D1::decompress_poly(r, msg);
 }
 
 #[cfg(test)]
@@ -44,10 +44,10 @@ mod tests {
             *c = (i as i16 * 13) % (Q - 1);
         }
         let mut buf = [0u8; POLYBYTES];
-        poly_tobytes(&mut buf, &a);
+        coeffs_to_bytes(&mut buf, &a);
 
         let mut b = [0i16; N];
-        poly_frombytes(&mut b, &buf);
+        bytes_to_coeffs(&mut b, &buf);
         assert_eq!(a, b);
     }
 
@@ -55,10 +55,10 @@ mod tests {
     fn frommsg_tomsg_roundtrip() {
         let msg: [u8; SYMBYTES] = core::array::from_fn(|i| (i * 37) as u8);
         let mut poly = [0i16; N];
-        poly_frommsg(&mut poly, &msg);
+        message_to_coeffs(&mut poly, &msg);
 
         let mut recovered = [0u8; SYMBYTES];
-        poly_tomsg(&mut recovered, &poly);
+        coeffs_to_message(&mut recovered, &poly);
         assert_eq!(msg, recovered);
     }
 }

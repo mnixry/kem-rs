@@ -54,7 +54,7 @@ impl Polynomial {
     #[must_use]
     pub fn from_message(msg: &[u8; SYMBYTES]) -> Self {
         let mut p = Self::zero();
-        encode::poly_frommsg(&mut p.0, msg);
+        encode::message_to_coeffs(&mut p.0, msg);
         p
     }
 
@@ -62,7 +62,7 @@ impl Polynomial {
     #[must_use]
     pub fn to_message(&self) -> [u8; SYMBYTES] {
         let mut msg = [0u8; SYMBYTES];
-        encode::poly_tomsg(&mut msg, &self.0);
+        encode::coeffs_to_message(&mut msg, &self.0);
         msg
     }
 
@@ -74,11 +74,13 @@ impl Polynomial {
         p
     }
 
-    pub fn coeffs(&self) -> &[i16; N] {
+    #[must_use]
+    pub const fn coeffs(&self) -> &[i16; N] {
         &self.0
     }
 
-    pub fn coeffs_mut(&mut self) -> &mut [i16; N] {
+    #[must_use]
+    pub const fn coeffs_mut(&mut self) -> &mut [i16; N] {
         &mut self.0
     }
 }
@@ -134,22 +136,24 @@ impl NttPolynomial {
 
     /// Serialize to bytes (12-bit packing, 384 bytes).
     pub fn to_bytes(&self, r: &mut [u8]) {
-        encode::poly_tobytes(r, &self.0);
+        encode::coeffs_to_bytes(r, &self.0);
     }
 
     /// Deserialize from bytes (12-bit unpacking).
     #[must_use]
     pub fn from_bytes(a: &[u8]) -> Self {
         let mut p = Self::zero();
-        encode::poly_frombytes(&mut p.0, a);
+        encode::bytes_to_coeffs(&mut p.0, a);
         p
     }
 
-    pub fn coeffs(&self) -> &[i16; N] {
+    #[must_use]
+    pub const fn coeffs(&self) -> &[i16; N] {
         &self.0
     }
 
-    pub fn coeffs_mut(&mut self) -> &mut [i16; N] {
+    #[must_use]
+    pub const fn coeffs_mut(&mut self) -> &mut [i16; N] {
         &mut self.0
     }
 }
