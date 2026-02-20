@@ -15,15 +15,17 @@
     clippy::many_single_char_names
 )]
 
+mod compress;
 mod encode;
 mod ntt;
+mod poly;
 mod reduce;
+mod sample;
 mod simd;
 
-pub mod compress;
-pub mod poly;
-pub mod polyvec;
-pub mod sample;
+pub use compress::{CompressWidth, D4, D5, D10, D11};
+pub use poly::{NttMatrix, NttPolynomial, NttVector, Polynomial, Vector};
+pub use sample::{CbdWidth, Eta2, Eta3, reject_uniform};
 
 /// Polynomial ring degree.
 pub const N: usize = 256;

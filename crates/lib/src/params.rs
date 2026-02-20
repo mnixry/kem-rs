@@ -5,13 +5,11 @@
 //! matrices). This eliminates runtime `match P::K { ... _ => unreachable!() }`
 //! dispatch.
 
-pub use kem_math::{N, POLYBYTES, Q, SYMBYTES};
 use kem_math::{
-    compress::{self, CompressWidth},
-    poly::{NttPolynomial, Polynomial},
-    polyvec::{NttMatrix, NttVector, Vector},
-    sample::{self, CbdWidth},
+    CbdWidth, CompressWidth, D4, D5, D10, D11, Eta2, Eta3, NttMatrix, NttPolynomial, NttVector,
+    Polynomial, Vector, reject_uniform,
 };
+pub use kem_math::{N, POLYBYTES, Q, SYMBYTES};
 use zeroize::Zeroize;
 
 pub const SSBYTES: usize = 32;
@@ -217,7 +215,7 @@ fn gen_matrix_inner<const K: usize>(seed: &[u8; SYMBYTES], transposed: bool) -> 
                 (j as u8, i as u8)
             };
             let mut xof = crate::hash::xof_absorb(seed, x, y);
-            sample::reject_uniform(poly.coeffs_mut(), |buf| xof.read(buf));
+            reject_uniform(poly.coeffs_mut(), |buf| xof.read(buf));
         }
     }
     a
@@ -267,10 +265,10 @@ pub struct MlKem1024;
 impl_parameter_set!(
     MlKem512,
     K = 2,
-    Eta1 = sample::Eta3,
-    Eta2 = sample::Eta2,
-    Du = compress::D10,
-    Dv = compress::D4,
+    Eta1 = Eta3,
+    Eta2 = Eta2,
+    Du = D10,
+    Dv = D4,
     PkArray = [u8; 800],
     SkArray = [u8; 1632],
     CtArray = [u8; 768],
@@ -288,10 +286,10 @@ impl_parameter_set!(
 impl_parameter_set!(
     MlKem768,
     K = 3,
-    Eta1 = sample::Eta2,
-    Eta2 = sample::Eta2,
-    Du = compress::D10,
-    Dv = compress::D4,
+    Eta1 = Eta2,
+    Eta2 = Eta2,
+    Du = D10,
+    Dv = D4,
     PkArray = [u8; 1184],
     SkArray = [u8; 2400],
     CtArray = [u8; 1088],
@@ -309,10 +307,10 @@ impl_parameter_set!(
 impl_parameter_set!(
     MlKem1024,
     K = 4,
-    Eta1 = sample::Eta2,
-    Eta2 = sample::Eta2,
-    Du = compress::D11,
-    Dv = compress::D5,
+    Eta1 = Eta2,
+    Eta2 = Eta2,
+    Du = D11,
+    Dv = D5,
     PkArray = [u8; 1568],
     SkArray = [u8; 3168],
     CtArray = [u8; 1568],

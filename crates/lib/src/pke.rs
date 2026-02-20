@@ -5,7 +5,7 @@
 //! sealed [`CbdWidth`] traits; compression uses sealed [`CompressWidth`]
 //! traits.
 
-use kem_math::{SYMBYTES, poly::Polynomial};
+use kem_math::{CbdWidth, Polynomial, SYMBYTES};
 
 use crate::{
     hash,
@@ -67,10 +67,10 @@ pub(crate) fn indcpa_enc<P: ParameterSet>(
     hash::prf(
         coins,
         nonce,
-        &mut e2_buf[..<<P as ParameterSet>::Eta2 as kem_math::sample::CbdWidth>::BUF_BYTES],
+        &mut e2_buf[..<<P as ParameterSet>::Eta2 as CbdWidth>::BUF_BYTES],
     );
     let e2 = Polynomial::sample_cbd::<P::Eta2>(
-        &e2_buf[..<<P as ParameterSet>::Eta2 as kem_math::sample::CbdWidth>::BUF_BYTES],
+        &e2_buf[..<<P as ParameterSet>::Eta2 as CbdWidth>::BUF_BYTES],
     );
 
     let u_hat = P::mat_mul_vec(&a_hat_t, &r_hat);

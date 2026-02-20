@@ -43,7 +43,7 @@ compress_width!(
 
 #[inline]
 #[must_use]
-pub(crate) const fn csubq(a: i16) -> u16 {
+pub const fn csubq(a: i16) -> u16 {
     let mut t = a as u16;
     t = t.wrapping_add(((a >> 15) as u16) & (Q as u16));
     t

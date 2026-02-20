@@ -1,18 +1,7 @@
-//! Domain-separated polynomial vector types.
-//!
-//! [`Vector`] holds `K` [`Polynomial`]s in standard form.
-//! [`NttVector`] holds `K` [`NttPolynomial`]s in NTT domain.
-//! Conversions between them are consuming, mirroring the scalar polynomial
-//! types.
-
 use core::ops;
 
-use crate::{
-    POLYBYTES,
-    compress::CompressWidth,
-    encode,
-    poly::{NttPolynomial, Polynomial},
-};
+use super::{NttPolynomial, Polynomial};
+use crate::{POLYBYTES, compress::CompressWidth, encode};
 
 /// A vector of `K` polynomials in standard (coefficient) form.
 #[derive(Clone)]
@@ -25,8 +14,6 @@ pub struct Vector<const K: usize> {
 pub struct NttVector<const K: usize> {
     pub(crate) polys: [NttPolynomial; K],
 }
-
-// -- Vector (standard form) --------------------------------------------------
 
 impl<const K: usize> Vector<K> {
     #[inline]
@@ -77,8 +64,6 @@ impl<const K: usize> Vector<K> {
         &mut self.polys
     }
 }
-
-// -- NttVector (NTT domain) --------------------------------------------------
 
 impl<const K: usize> NttVector<K> {
     #[inline]
@@ -183,8 +168,6 @@ impl<const K: usize> NttMatrix<K> {
         &mut self.rows
     }
 }
-
-// -- Operator impls ----------------------------------------------------------
 
 impl<'b, const K: usize> ops::Add<&'b Vector<K>> for &Vector<K> {
     type Output = Vector<K>;
