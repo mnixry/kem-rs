@@ -9,7 +9,7 @@ const DEFAULT_LANES: usize = 16;
 /// Barrett reduction: `r \equiv a \pmod{q}`, centered `|r| <= q/2`.
 #[inline]
 #[must_use]
-pub(super) fn barrett_reduce_vec<const L: usize>(a: Simd<i16, L>) -> Simd<i16, L> {
+pub fn barrett_reduce_vec<const L: usize>(a: Simd<i16, L>) -> Simd<i16, L> {
     const V: i32 = 20159;
     let aw: Simd<i32, L> = a.cast();
     let t =
@@ -20,7 +20,7 @@ pub(super) fn barrett_reduce_vec<const L: usize>(a: Simd<i16, L>) -> Simd<i16, L
 /// Montgomery reduction: `a * R^{-1} mod q`, `R = 2^{16}`.
 #[inline]
 #[must_use]
-pub(super) fn montgomery_reduce_vec<const L: usize>(a: Simd<i32, L>) -> Simd<i16, L> {
+pub fn montgomery_reduce_vec<const L: usize>(a: Simd<i32, L>) -> Simd<i16, L> {
     let qinv = Simd::<i32, L>::splat(QINV as i32);
     let q = Simd::<i32, L>::splat(Q as i32);
     let s16 = Simd::splat(16);
@@ -32,7 +32,7 @@ pub(super) fn montgomery_reduce_vec<const L: usize>(a: Simd<i32, L>) -> Simd<i16
 /// Field multiply: `a * b * R^{-1} mod q`.
 #[inline]
 #[must_use]
-pub(super) fn fqmul_vec<const L: usize>(a: Simd<i16, L>, b: Simd<i16, L>) -> Simd<i16, L> {
+pub fn fqmul_vec<const L: usize>(a: Simd<i16, L>, b: Simd<i16, L>) -> Simd<i16, L> {
     montgomery_reduce_vec(a.cast::<i32>() * b.cast::<i32>())
 }
 

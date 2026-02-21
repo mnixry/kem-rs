@@ -1,6 +1,11 @@
 //! Number-Theoretic Transform and base multiplication in `Z_q[X]/(X^2 - zeta)`.
 
-use crate::N;
+use core::simd::Simd;
+
+use crate::{
+    N,
+    simd::{barrett_reduce_vec, fqmul_vec},
+};
 
 const Q64: i64 = crate::Q as i64;
 
@@ -56,40 +61,142 @@ pub const ZETAS: [i16; 128] = {
     zetas
 };
 
+/// Single NTT butterfly layer. `$sw` (SIMD width) must divide `$len`.
+/// When `$sw == $len` the inner loop executes exactly once (no tail).
+macro_rules! ntt_layer {
+    (fwd, $r:ident, $k:ident, $len:literal, $sw:literal) => {{
+        let mut start = 0usize;
+        while start < N {
+            let zeta = ZETAS[$k];
+            $k += 1;
+            let (lo, hi) = $r[start..start + 2 * $len].split_at_mut($len);
+            let z = Simd::<i16, $sw>::splat(zeta);
+            let mut i = 0usize;
+            while i < $len {
+                let a = Simd::<i16, $sw>::from_slice(&lo[i..]);
+                let b = Simd::<i16, $sw>::from_slice(&hi[i..]);
+                let t = fqmul_vec(z, b);
+                (a + t).copy_to_slice(&mut lo[i..i + $sw]);
+                (a - t).copy_to_slice(&mut hi[i..i + $sw]);
+                i += $sw;
+            }
+            start += 2 * $len;
+        }
+    }};
+    (inv, $r:ident, $k:ident, $len:literal, $sw:literal) => {{
+        let mut start = 0usize;
+        while start < N {
+            let zeta = ZETAS[$k];
+            $k = $k.wrapping_sub(1);
+            let (lo, hi) = $r[start..start + 2 * $len].split_at_mut($len);
+            let z = Simd::<i16, $sw>::splat(zeta);
+            let mut i = 0usize;
+            while i < $len {
+                let a = Simd::<i16, $sw>::from_slice(&lo[i..]);
+                let b = Simd::<i16, $sw>::from_slice(&hi[i..]);
+                barrett_reduce_vec(a + b).copy_to_slice(&mut lo[i..i + $sw]);
+                fqmul_vec(z, b - a).copy_to_slice(&mut hi[i..i + $sw]);
+                i += $sw;
+            }
+            start += 2 * $len;
+        }
+    }};
+}
+
+/// Dispatch one layer with `simd_width = min(len, lanes)`.
+///
+/// Pattern-matching computes the minimum at macro-expansion time:
+/// - `len = 128` always exceeds max supported lanes (64) -> use lanes.
+/// - `len in {2, 4, 8}` always fits in min supported lanes (8) -> use len.
+/// - Remaining lengths match specific lane values for the crossover.
+macro_rules! ntt_dispatch_layer {
+    ($dir:ident, $r:ident, $k:ident, 128, $lanes:literal) => {
+        ntt_layer!($dir, $r, $k, 128, $lanes);
+    };
+    ($dir:ident, $r:ident, $k:ident, 2, $lanes:literal) => {
+        ntt_layer!($dir, $r, $k, 2, 2);
+    };
+    ($dir:ident, $r:ident, $k:ident, 4, $lanes:literal) => {
+        ntt_layer!($dir, $r, $k, 4, 4);
+    };
+    ($dir:ident, $r:ident, $k:ident, 8, $lanes:literal) => {
+        ntt_layer!($dir, $r, $k, 8, 8);
+    };
+    // len = 16: min(16, lanes)
+    ($dir:ident, $r:ident, $k:ident, 16, 8) => {
+        ntt_layer!($dir, $r, $k, 16, 8);
+    };
+    ($dir:ident, $r:ident, $k:ident, 16, $lanes:literal) => {
+        ntt_layer!($dir, $r, $k, 16, 16);
+    };
+    // len = 32: min(32, lanes)
+    ($dir:ident, $r:ident, $k:ident, 32, 8) => {
+        ntt_layer!($dir, $r, $k, 32, 8);
+    };
+    ($dir:ident, $r:ident, $k:ident, 32, 16) => {
+        ntt_layer!($dir, $r, $k, 32, 16);
+    };
+    ($dir:ident, $r:ident, $k:ident, 32, $lanes:literal) => {
+        ntt_layer!($dir, $r, $k, 32, 32);
+    };
+    // len = 64: min(64, lanes)
+    ($dir:ident, $r:ident, $k:ident, 64, 8) => {
+        ntt_layer!($dir, $r, $k, 64, 8);
+    };
+    ($dir:ident, $r:ident, $k:ident, 64, 16) => {
+        ntt_layer!($dir, $r, $k, 64, 16);
+    };
+    ($dir:ident, $r:ident, $k:ident, 64, 32) => {
+        ntt_layer!($dir, $r, $k, 64, 32);
+    };
+    ($dir:ident, $r:ident, $k:ident, 64, $lanes:literal) => {
+        ntt_layer!($dir, $r, $k, 64, 64);
+    };
+}
+
 /// Forward NTT (in-place). Standard order in, bit-reversed order out.
 pub fn forward_ntt(r: &mut [i16; N]) {
-    let mut k: usize = 1;
-    let mut len = 128;
-    while len >= 2 {
-        let mut start = 0;
-        while start < N {
-            let zeta = ZETAS[k];
-            k += 1;
-            let (lo, hi) = r[start..start + 2 * len].split_at_mut(len);
-            crate::simd::butterfly_forward(lo, hi, zeta);
-            start += 2 * len;
-        }
-        len >>= 1;
+    macro_rules! body {
+        ($lanes:literal) => {{
+            let mut k = 1usize;
+            ntt_dispatch_layer!(fwd, r, k, 128, $lanes);
+            ntt_dispatch_layer!(fwd, r, k, 64, $lanes);
+            ntt_dispatch_layer!(fwd, r, k, 32, $lanes);
+            ntt_dispatch_layer!(fwd, r, k, 16, $lanes);
+            ntt_dispatch_layer!(fwd, r, k, 8, $lanes);
+            ntt_dispatch_layer!(fwd, r, k, 4, $lanes);
+            ntt_dispatch_layer!(fwd, r, k, 2, $lanes);
+        }};
+    }
+    match crate::simd::get_lane_width() {
+        crate::simd::LaneWidth::L8 => body!(8),
+        crate::simd::LaneWidth::L16 => body!(16),
+        crate::simd::LaneWidth::L32 => body!(32),
+        crate::simd::LaneWidth::L64 => body!(64),
     }
 }
 
 /// Inverse NTT (in-place). Bit-reversed in, standard order out,
 /// each coefficient scaled by Montgomery factor `R = 2^{16}`.
 pub fn inverse_ntt(r: &mut [i16; N]) {
-    // R^2 * 128^{-1} mod q, where R = 2^{16}
     const F: i16 = centred(pow_mod(2, 32, Q64) * pow_mod(128, Q64 - 2, Q64) % Q64);
-    let mut k: usize = 127;
-    let mut len = 2;
-    while len <= 128 {
-        let mut start = 0;
-        while start < N {
-            let zeta = ZETAS[k];
-            k = k.wrapping_sub(1);
-            let (lo, hi) = r[start..start + 2 * len].split_at_mut(len);
-            crate::simd::butterfly_inverse(lo, hi, zeta);
-            start += 2 * len;
-        }
-        len <<= 1;
+    macro_rules! body {
+        ($lanes:literal) => {{
+            let mut k = 127usize;
+            ntt_dispatch_layer!(inv, r, k, 2, $lanes);
+            ntt_dispatch_layer!(inv, r, k, 4, $lanes);
+            ntt_dispatch_layer!(inv, r, k, 8, $lanes);
+            ntt_dispatch_layer!(inv, r, k, 16, $lanes);
+            ntt_dispatch_layer!(inv, r, k, 32, $lanes);
+            ntt_dispatch_layer!(inv, r, k, 64, $lanes);
+            ntt_dispatch_layer!(inv, r, k, 128, $lanes);
+        }};
+    }
+    match crate::simd::get_lane_width() {
+        crate::simd::LaneWidth::L8 => body!(8),
+        crate::simd::LaneWidth::L16 => body!(16),
+        crate::simd::LaneWidth::L32 => body!(32),
+        crate::simd::LaneWidth::L64 => body!(64),
     }
     crate::simd::poly_mul_scalar_montgomery(r, F);
 }

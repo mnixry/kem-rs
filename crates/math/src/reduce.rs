@@ -22,6 +22,7 @@ pub const fn montgomery_reduce(a: i32) -> i16 {
 /// {-floor(q/2), ..., floor(q/2)}` with `r \equiv a (mod q)`.
 #[inline]
 #[must_use]
+#[cfg(test)]
 pub const fn barrett_reduce(a: i16) -> i16 {
     const V: i32 = ((1i32 << 26) + (Q as i32) / 2) / (Q as i32); // 20159
     let t = ((V * (a as i32) + (1 << 25)) >> 26) as i16;
