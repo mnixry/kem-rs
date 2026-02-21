@@ -6,22 +6,35 @@ mod sealed {
     pub trait Sealed {}
 }
 
-/// Sealed trait for CBD noise sampling width.
-pub trait CbdWidth: sealed::Sealed {
+pub trait CbdWidthParams: sealed::Sealed {
     const ETA: usize;
     const BUF_BYTES: usize;
+}
 
+macro_rules! cbd_width {
+    ($($name:ident: $eta:expr, $poly_bytes:expr),*) => {
+        $(
+            pub struct $name;
+            impl sealed::Sealed for $name {}
+            impl CbdWidthParams for $name {
+                const ETA: usize = $eta;
+                const BUF_BYTES: usize = $poly_bytes;
+            }
+        )*
+    };
+}
+
+cbd_width!(
+    Eta2: 2, 2 * N / 4,
+    Eta3: 3, 3 * N / 4
+);
+
+/// Sealed trait for CBD noise sampling width.
+pub trait CbdWidth: CbdWidthParams {
     fn sample(r: &mut [i16; N], buf: &[u8]);
 }
 
-pub struct Eta2;
-pub struct Eta3;
-
-impl sealed::Sealed for Eta2 {}
 impl CbdWidth for Eta2 {
-    const ETA: usize = 2;
-    const BUF_BYTES: usize = 2 * N / 4;
-
     #[inline]
     fn sample(r: &mut [i16; N], buf: &[u8]) {
         debug_assert!(buf.len() >= 2 * N / 4);
@@ -38,11 +51,7 @@ impl CbdWidth for Eta2 {
     }
 }
 
-impl sealed::Sealed for Eta3 {}
 impl CbdWidth for Eta3 {
-    const ETA: usize = 3;
-    const BUF_BYTES: usize = 3 * N / 4;
-
     #[inline]
     fn sample(r: &mut [i16; N], buf: &[u8]) {
         debug_assert!(buf.len() >= 3 * N / 4);

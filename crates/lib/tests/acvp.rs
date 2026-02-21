@@ -40,9 +40,9 @@ where
 #[serde(transparent)]
 struct HexBytes(#[serde(deserialize_with = "de_hex_vec")] Vec<u8>);
 
-impl HexBytes {
-    fn as_slice(&self) -> &[u8] {
-        &self.0
+impl<'a> From<&'a HexBytes> for &'a [u8] {
+    fn from(HexBytes(bytes): &'a HexBytes) -> Self {
+        bytes
     }
 }
 
@@ -50,9 +50,9 @@ impl HexBytes {
 #[serde(transparent)]
 struct Hex32(#[serde(deserialize_with = "de_hex_32")] [u8; SYMBYTES]);
 
-impl Hex32 {
-    fn as_array(&self) -> &[u8; SYMBYTES] {
-        &self.0
+impl<'a> From<&'a Hex32> for &'a [u8; SYMBYTES] {
+    fn from(Hex32(bytes): &'a Hex32) -> Self {
+        bytes
     }
 }
 
@@ -173,12 +173,12 @@ fn by_tc_id<T>(tests: &[T], id_fn: impl Fn(&T) -> u64) -> HashMap<u64, &T> {
     tests.iter().map(|test| (id_fn(test), test)).collect()
 }
 
-fn require_hex<'a>(value: &'a Option<HexBytes>, field: &str) -> &'a [u8] {
-    value.as_ref().map(HexBytes::as_slice).expect(field)
-}
-
-fn require_hex32<'a>(value: &'a Option<Hex32>, field: &str) -> &'a [u8; SYMBYTES] {
-    value.as_ref().map(Hex32::as_array).expect(field)
+macro_rules! require_hex {
+    ($struct:ident, $($field:ident), *) => {
+        $(
+            let $field = $struct.$field.as_ref().expect(stringify!($field)).into();
+        )*
+    };
 }
 
 fn to_byte_array<A: ByteArray>(bytes: &[u8], expected_len: usize) -> A {
@@ -188,6 +188,7 @@ fn to_byte_array<A: ByteArray>(bytes: &[u8], expected_len: usize) -> A {
     out
 }
 
+#[allow(clippy::similar_names)]
 fn run_keygen_case<P: ParameterSet>(
     d: &[u8; SYMBYTES], z: &[u8; SYMBYTES], expected_ek: &[u8], expected_dk: &[u8],
 ) {
@@ -227,9 +228,9 @@ fn encapsulation_key_check<P: ParameterSet>(ek: &[u8]) -> bool {
 
     let mut chunks = ek[..P::POLYVEC_BYTES].chunks_exact(3);
     for chunk in &mut chunks {
-        let b0 = chunk[0] as u16;
-        let b1 = chunk[1] as u16;
-        let b2 = chunk[2] as u16;
+        let b0 = u16::from(chunk[0]);
+        let b1 = u16::from(chunk[1]);
+        let b2 = u16::from(chunk[2]);
         let c0 = b0 | ((b1 & 0x0F) << 8);
         let c1 = (b1 >> 4) | (b2 << 4);
         if c0 >= Q as u16 || c1 >= Q as u16 {
@@ -278,27 +279,27 @@ fn acvp_keygen_vectors() {
             prompt_group.parameter_set.run(
                 || {
                     run_keygen_case::<MlKem512>(
-                        prompt_test.d.as_array(),
-                        prompt_test.z.as_array(),
-                        expected_test.ek.as_slice(),
-                        expected_test.dk.as_slice(),
-                    )
+                        (&prompt_test.d).into(),
+                        (&prompt_test.z).into(),
+                        (&expected_test.ek).into(),
+                        (&expected_test.dk).into(),
+                    );
                 },
                 || {
                     run_keygen_case::<MlKem768>(
-                        prompt_test.d.as_array(),
-                        prompt_test.z.as_array(),
-                        expected_test.ek.as_slice(),
-                        expected_test.dk.as_slice(),
-                    )
+                        (&prompt_test.d).into(),
+                        (&prompt_test.z).into(),
+                        (&expected_test.ek).into(),
+                        (&expected_test.dk).into(),
+                    );
                 },
                 || {
                     run_keygen_case::<MlKem1024>(
-                        prompt_test.d.as_array(),
-                        prompt_test.z.as_array(),
-                        expected_test.ek.as_slice(),
-                        expected_test.dk.as_slice(),
-                    )
+                        (&prompt_test.d).into(),
+                        (&prompt_test.z).into(),
+                        (&expected_test.ek).into(),
+                        (&expected_test.dk).into(),
+                    );
                 },
             );
         }
@@ -327,10 +328,8 @@ fn acvp_encap_decap_vectors() {
 
             match prompt_group.function {
                 EncapFunction::Encapsulation => {
-                    let ek = require_hex(&prompt_test.ek, "ek");
-                    let m = require_hex32(&prompt_test.m, "m");
-                    let c = require_hex(&expected_test.c, "c");
-                    let k = require_hex32(&expected_test.k, "k");
+                    require_hex!(prompt_test, ek, m);
+                    require_hex!(expected_test, c, k);
 
                     prompt_group.parameter_set.run(
                         || run_encapsulation_case::<MlKem512>(ek, m, c, k),
@@ -339,9 +338,8 @@ fn acvp_encap_decap_vectors() {
                     );
                 }
                 EncapFunction::Decapsulation => {
-                    let dk = require_hex(&prompt_test.dk, "dk");
-                    let c = require_hex(&prompt_test.c, "c");
-                    let k = require_hex32(&expected_test.k, "k");
+                    require_hex!(prompt_test, dk, c);
+                    require_hex!(expected_test, k);
 
                     prompt_group.parameter_set.run(
                         || run_decapsulation_case::<MlKem512>(dk, c, k),
@@ -350,7 +348,7 @@ fn acvp_encap_decap_vectors() {
                     );
                 }
                 EncapFunction::DecapsulationKeyCheck => {
-                    let dk = require_hex(&prompt_test.dk, "dk");
+                    require_hex!(prompt_test, dk);
                     let expected_passed = expected_test.test_passed.expect("testPassed");
                     let actual = prompt_group.parameter_set.run(
                         || decapsulation_key_check::<MlKem512>(dk),
@@ -360,7 +358,7 @@ fn acvp_encap_decap_vectors() {
                     assert_eq!(actual, expected_passed);
                 }
                 EncapFunction::EncapsulationKeyCheck => {
-                    let ek = require_hex(&prompt_test.ek, "ek");
+                    require_hex!(prompt_test, ek);
                     let expected_passed = expected_test.test_passed.expect("testPassed");
                     let actual = prompt_group.parameter_set.run(
                         || encapsulation_key_check::<MlKem512>(ek),
