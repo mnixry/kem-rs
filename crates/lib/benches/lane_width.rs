@@ -7,9 +7,7 @@ use core::hint::black_box;
 
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use kem_math::LaneWidth;
-
-#[global_allocator]
-static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+use pprof::criterion::{Output, PProfProfiler};
 
 const LANE_WIDTHS: [LaneWidth; 4] = [
     LaneWidth::L8,
@@ -26,7 +24,13 @@ fn deterministic_coins() -> ([u8; 64], [u8; 32]) {
 
 #[allow(clippy::significant_drop_tightening)]
 fn bench_lane_widths_for<P: kem_rs::ParameterSet>(c: &mut Criterion) {
-    let mut g = c.benchmark_group(format!("lanes/{}", std::any::type_name::<P>()));
+    let mut g = c.benchmark_group(format!(
+        "lanes/{}",
+        std::any::type_name::<P>()
+            .split("::")
+            .last()
+            .expect("type name not found")
+    ));
 
     let (keygen_coins, enc_coins) = deterministic_coins();
 
@@ -86,5 +90,9 @@ fn lane_width_benches(c: &mut Criterion) {
     bench_lane_widths_for::<kem_rs::MlKem1024>(c);
 }
 
-criterion_group!(benches, lane_width_benches);
+criterion_group! {
+    name = benches;
+    config = Criterion::default().with_profiler(PProfProfiler::new(100, Output::Flamegraph(None)));
+    targets = lane_width_benches
+}
 criterion_main!(benches);

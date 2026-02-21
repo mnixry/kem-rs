@@ -57,6 +57,7 @@
             buildInputs =
               lib.singleton rust
               ++ (with pkgs; [
+                cargo-flamegraph
                 cargo-edit
                 cargo-nextest
                 cargo-llvm-cov
