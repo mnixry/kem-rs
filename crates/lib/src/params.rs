@@ -10,6 +10,8 @@ use kem_math::{
 pub use kem_math::{N, POLYBYTES, Q, SYMBYTES};
 use zeroize::Zeroize;
 
+use crate::hash::XofReader;
+
 pub const SSBYTES: usize = 32;
 
 pub trait ByteArray:
@@ -196,7 +198,6 @@ macro_rules! impl_parameter_set {
 }
 
 fn gen_matrix_inner<const K: usize>(seed: &[u8; SYMBYTES], transposed: bool) -> NttMatrix<K> {
-    use sha3::digest::XofReader;
     let mut a = NttMatrix::<K>::zero();
     for (i, a_row) in a.rows_mut().iter_mut().enumerate() {
         for (j, poly) in a_row.polys_mut().iter_mut().enumerate() {

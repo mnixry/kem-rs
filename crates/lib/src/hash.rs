@@ -1,18 +1,12 @@
 //! Hash and extendable-output function (XOF) adapters.
 //!
 //! Wraps the SHA-3 family as used by ML-KEM (FIPS 203):
-//!
-//! | ML-KEM name | Primitive   | Function |
-//! |-------------|-------------|----------|
-//! | **H**       | SHA3-256    | [`hash_h`] |
-//! | **G**       | SHA3-512    | [`hash_g`] |
-//! | **PRF**     | SHAKE-256   | [`prf`] |
-//! | **XOF**     | SHAKE-128   | [`xof_absorb`] |
-//! | **J**       | SHAKE-256   | [`rkprf`] |
 
+use kem_math::SYMBYTES;
+pub use sha3::digest::XofReader;
 use sha3::{
     Digest, Sha3_256, Sha3_512, Shake128, Shake256,
-    digest::{ExtendableOutput, Update, XofReader},
+    digest::{ExtendableOutput, Update},
 };
 
 use crate::params::SSBYTES;
@@ -30,17 +24,20 @@ pub fn hash_g(input: impl AsRef<[u8]>) -> [u8; 64] {
 }
 
 /// `PRF(seed, nonce) = SHAKE-256(seed || nonce)`, squeezed into `output`.
-pub fn prf(seed: impl AsRef<[u8]>, nonce: u8, output: &mut [u8]) {
-    Shake256::default()
-        .chain(seed)
-        .chain([nonce])
-        .finalize_xof()
-        .read(output);
+pub fn prf(seed: &[u8; SYMBYTES], nonce: u8, output: &mut [u8]) {
+    let mut buf = [0; SYMBYTES + 1];
+    buf[..SYMBYTES].copy_from_slice(seed);
+    buf[SYMBYTES] = nonce;
+    Shake256::digest_xof(buf, output);
 }
 
 /// SHAKE-128 XOF: absorbs `seed || x || y`, returns reader.
-pub fn xof_absorb(seed: impl AsRef<[u8]>, x: u8, y: u8) -> impl XofReader {
-    Shake128::default().chain(seed).chain([x, y]).finalize_xof()
+#[must_use]
+pub fn xof_absorb(seed: &[u8; SYMBYTES], x: u8, y: u8) -> impl XofReader {
+    let mut buf = [0; SYMBYTES + 2];
+    buf[..SYMBYTES].copy_from_slice(seed);
+    buf[SYMBYTES..].copy_from_slice(&[x, y]);
+    Shake128::default().chain(buf).finalize_xof()
 }
 
 /// J(key, ct) = SHAKE-256(key || ct) -> 32 bytes (implicit-reject PRF).
