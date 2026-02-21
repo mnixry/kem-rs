@@ -1,4 +1,4 @@
-//! ML-KEM (IND-CCA2 Key Encapsulation Mechanism) — FIPS 203.
+//! ML-KEM (IND-CCA2 Key Encapsulation Mechanism) -- FIPS 203.
 //!
 //! All public functions are panic-free: no `.unwrap()`, no `unreachable!()`.
 //! Output sizes are derived from [`ParameterSet`] associated types.

@@ -4,9 +4,6 @@ use super::kernels::{barrett_reduce_vec, fqmul_vec};
 
 /// Forward butterfly: `(lo, hi) <- (lo + t, lo - t)` where `t = zeta * hi *
 /// R^{-1}`.
-///
-/// SIMD width selected by the global lane-width setting; scalar fallback for
-/// any remainder elements.
 #[inline]
 pub fn butterfly_forward(lo: &mut [i16], hi: &mut [i16], zeta: i16) {
     super::dispatch_lanes!(butterfly_forward_lanes(lo, hi, zeta));

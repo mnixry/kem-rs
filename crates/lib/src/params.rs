@@ -1,9 +1,7 @@
 //! ML-KEM parameter definitions.
 //!
-//! The sealed [`ParameterSet`] trait encodes all ML-KEM parameters at the type
-//! level, including associated types for K-dependent algebra (vectors,
-//! matrices). This eliminates runtime `match P::K { ... _ => unreachable!() }`
-//! dispatch.
+//! The sealed [`ParameterSet`] trait encodes all parameters at the type level,
+//! including K-dependent algebra types, eliminating runtime dispatch.
 
 use kem_math::{
     CbdWidth, CompressWidth, D4, D5, D10, D11, Eta2, Eta3, NttMatrix, NttPolynomial, NttVector,
@@ -33,8 +31,7 @@ mod sealed {
     pub trait Sealed {}
 }
 
-/// ML-KEM parameter set. Sealed -- only implemented for [`MlKem512`],
-/// [`MlKem768`], [`MlKem1024`].
+/// ML-KEM parameter set (sealed).
 pub trait ParameterSet: sealed::Sealed + 'static {
     const K: usize;
 
@@ -56,8 +53,6 @@ pub trait ParameterSet: sealed::Sealed + 'static {
     type PkArray: ByteArray;
     type SkArray: ByteArray;
     type CtArray: ByteArray;
-
-    // -- K-dependent algebra operations (monomorphized per parameter set) -----
 
     fn gen_matrix(seed: &[u8; SYMBYTES], transposed: bool) -> Self::Matrix;
     fn sample_noise_eta1(seed: &[u8; SYMBYTES], nonce: &mut u8) -> Self::NttVec;
@@ -81,8 +76,6 @@ pub trait ParameterSet: sealed::Sealed + 'static {
     type Vec: Clone;
     type Matrix;
 }
-
-// -- Macro to implement ParameterSet for each K ------------------------------
 
 macro_rules! impl_parameter_set {
     (
@@ -202,8 +195,6 @@ macro_rules! impl_parameter_set {
     };
 }
 
-// -- Helper functions used by the macro impls --------------------------------
-
 fn gen_matrix_inner<const K: usize>(seed: &[u8; SYMBYTES], transposed: bool) -> NttMatrix<K> {
     use sha3::digest::XofReader;
     let mut a = NttMatrix::<K>::zero();
@@ -247,8 +238,6 @@ fn sample_noise_std<Eta: CbdWidth, const K: usize>(
     }
     v
 }
-
-// -- Parameter set marker types ----------------------------------------------
 
 /// ML-KEM-512 (k = 2, NIST security level 1).
 #[derive(Debug, Clone, Copy)]

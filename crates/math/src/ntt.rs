@@ -1,8 +1,4 @@
 //! Number-Theoretic Transform and base multiplication in `Z_q[X]/(X^2 - zeta)`.
-//!
-//! - `forward_ntt`: forward NTT, standard order -> bit-reversed order.
-//! - `inverse_ntt`: inverse NTT with Montgomery scaling.
-//! - `basemul`: degree-1 multiplication in the NTT domain.
 
 use crate::N;
 
@@ -31,7 +27,7 @@ const fn bitrev7(x: usize) -> usize {
         | ((x & 1) << 6)
 }
 
-/// Centred representative of `val mod q` in `[−(q−1)/2, (q−1)/2]`.
+/// Centred representative of `val mod q` in `[-(q-1)/2, (q-1)/2]`.
 const fn centred(val: i64) -> i16 {
     if val > Q64 / 2 {
         (val - Q64) as i16
@@ -40,10 +36,10 @@ const fn centred(val: i64) -> i16 {
     }
 }
 
-/// Twiddle factors in Montgomery form, from primitive 512th root ζ = 17,
+/// Twiddle factors in Montgomery form, from primitive 512th root \zeta = 17,
 /// bit-reversed indexing.
 ///
-/// `ZETAS[i] = ζ^{BitRev₇(i)} · 2¹⁶  (mod q)`, centred to signed.
+/// `ZETAS[i] = \zeta^{BitRev_7(i)} * 2^{16}  (mod q)`, centred to signed.
 ///
 /// Values match Appendix A of FIPS 203 (scaled into Montgomery domain).
 pub const ZETAS: [i16; 128] = {
@@ -80,7 +76,7 @@ pub fn forward_ntt(r: &mut [i16; N]) {
 /// Inverse NTT (in-place). Bit-reversed in, standard order out,
 /// each coefficient scaled by Montgomery factor `R = 2^{16}`.
 pub fn inverse_ntt(r: &mut [i16; N]) {
-    // R² · 128⁻¹ mod q, where R = 2¹⁶
+    // R^2 * 128^{-1} mod q, where R = 2^{16}
     const F: i16 = centred(pow_mod(2, 32, Q64) * pow_mod(128, Q64 - 2, Q64) % Q64);
     let mut k: usize = 127;
     let mut len = 2;

@@ -1,9 +1,7 @@
 //! IND-CPA public-key encryption (K-PKE) for ML-KEM.
 //!
-//! All operations are fully generic over [`ParameterSet`], with no runtime
-//! `match` dispatch and no `unreachable!()` branches. Noise sampling uses the
-//! sealed [`CbdWidth`] traits; compression uses sealed [`CompressWidth`]
-//! traits.
+//! Generic over [`ParameterSet`] with no runtime dispatch. Noise via sealed
+//! [`CbdWidth`]; compression via sealed [`CompressWidth`].
 
 use kem_math::{CbdWidth, Polynomial, SYMBYTES};
 
@@ -13,8 +11,6 @@ use crate::{
 };
 
 /// Deterministic IND-CPA key generation.
-///
-/// Returns `(pk_bytes, sk_bytes)` as typed arrays.
 pub(crate) fn indcpa_keypair_derand<P: ParameterSet>(
     coins: &[u8; SYMBYTES],
 ) -> (P::PkArray, P::PkArray) {
@@ -47,8 +43,6 @@ pub(crate) fn indcpa_keypair_derand<P: ParameterSet>(
 }
 
 /// IND-CPA encryption.
-///
-/// Returns ciphertext as typed array.
 pub(crate) fn indcpa_enc<P: ParameterSet>(
     pk_bytes: &[u8], m: &[u8; SYMBYTES], coins: &[u8; SYMBYTES],
 ) -> P::CtArray {
@@ -95,8 +89,6 @@ pub(crate) fn indcpa_enc<P: ParameterSet>(
 }
 
 /// IND-CPA decryption.
-///
-/// Returns the 32-byte message.
 pub(crate) fn indcpa_dec<P: ParameterSet>(ct_bytes: &[u8], sk_bytes: &[u8]) -> [u8; SYMBYTES] {
     let u = P::vec_decompress(&ct_bytes[..P::POLYVEC_COMPRESSED_BYTES]);
     let v = Polynomial::decompress::<P::Dv>(

@@ -24,7 +24,6 @@ impl<const K: usize> Vector<K> {
         }
     }
 
-    /// Consuming forward NTT on every polynomial.
     #[must_use]
     pub fn ntt(self) -> NttVector<K> {
         let polys = self.polys.map(Polynomial::ntt);
@@ -37,14 +36,12 @@ impl<const K: usize> Vector<K> {
         }
     }
 
-    /// Compress vector with sealed compression width `D`.
     pub fn compress<D: CompressWidth>(&self, r: &mut [u8]) {
         for (i, p) in self.polys.iter().enumerate() {
             p.compress::<D>(&mut r[i * D::POLY_BYTES..(i + 1) * D::POLY_BYTES]);
         }
     }
 
-    /// Decompress vector with sealed compression width `D`.
     #[must_use]
     pub fn decompress<D: CompressWidth>(a: &[u8]) -> Self {
         let mut v = Self::zero();
@@ -74,7 +71,6 @@ impl<const K: usize> NttVector<K> {
         }
     }
 
-    /// Consuming inverse NTT on every polynomial.
     #[must_use]
     pub fn ntt_inverse(self) -> Vector<K> {
         let polys = self.polys.map(NttPolynomial::ntt_inverse);
@@ -87,8 +83,7 @@ impl<const K: usize> NttVector<K> {
         }
     }
 
-    /// Inner product with accumulation: `sum_i(self[i] * other[i])` (NTT
-    /// domain).
+    /// `sum_i(self[i] * other[i])` in NTT domain.
     #[must_use]
     pub fn inner_product(&self, other: &Self) -> NttPolynomial {
         let mut acc = self.polys[0].basemul(&other.polys[0]);
@@ -106,7 +101,6 @@ impl<const K: usize> NttVector<K> {
         }
     }
 
-    /// Deserialize from bytes.
     #[must_use]
     pub fn from_bytes(a: &[u8]) -> Self {
         let mut v = Self::zero();
@@ -127,7 +121,7 @@ impl<const K: usize> NttVector<K> {
     }
 }
 
-/// A K x K matrix of NTT-domain polynomials (used for the public matrix A).
+/// K x K matrix of NTT-domain polynomials (public matrix A).
 pub struct NttMatrix<const K: usize> {
     pub(crate) rows: [NttVector<K>; K],
 }
@@ -141,8 +135,7 @@ impl<const K: usize> NttMatrix<K> {
         }
     }
 
-    /// Matrix-vector product: `A * v` where each row of A is dot-producted
-    /// with v, plus optional Montgomery conversion on each result.
+    /// `A * v` with Montgomery conversion on each result row.
     #[must_use]
     pub fn mul_vec_tomont(&self, v: &NttVector<K>) -> NttVector<K> {
         let mut result = NttVector::zero();
@@ -153,7 +146,7 @@ impl<const K: usize> NttMatrix<K> {
         result
     }
 
-    /// Matrix-vector product without Montgomery conversion.
+    /// `A * v` without Montgomery conversion.
     #[must_use]
     pub fn mul_vec(&self, v: &NttVector<K>) -> NttVector<K> {
         let mut result = NttVector::zero();

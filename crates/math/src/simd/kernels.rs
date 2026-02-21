@@ -2,7 +2,7 @@ use core::simd::{Simd, prelude::*};
 
 use crate::{Q, reduce::QINV};
 
-/// Lane count used by kernel-level unit tests (16 × i16 = 256-bit).
+/// Lane count used by kernel-level unit tests (16 x i16 = 256-bit).
 #[cfg(test)]
 const DEFAULT_LANES: usize = 16;
 

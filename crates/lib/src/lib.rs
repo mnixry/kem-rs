@@ -1,16 +1,16 @@
-//! `kem-rs` — A safe, portable-SIMD ML-KEM implementation.
+//! `kem-rs` -- A safe, portable-SIMD ML-KEM implementation.
 //!
 //! Implements ML-KEM (FIPS 203) for all three parameter sets:
 //! ML-KEM-512, ML-KEM-768, and ML-KEM-1024.
 //!
 //! # Design principles
 //!
-//! - **No `unsafe`** — enforced by `#![deny(unsafe_code)]`.
+//! - **No `unsafe`** -- enforced by `#![deny(unsafe_code)]`.
 //! - **Nightly `portable_simd`** for vectorized arithmetic with scalar
 //!   fallback.
 //! - **RAII zeroization** of secret material via the `zeroize` crate.
 //! - **Constant-time** operations for secret-dependent comparisons and moves.
-//! - **Panic-free** — no `unreachable!()` or `.unwrap()` in the public API.
+//! - **Panic-free** -- no `unreachable!()` or `.unwrap()` in the public API.
 
 #![deny(unsafe_code)]
 

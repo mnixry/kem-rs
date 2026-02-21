@@ -14,7 +14,6 @@ impl Polynomial {
         Self([0i16; N])
     }
 
-    /// Consuming forward NTT transform.
     #[must_use]
     pub fn ntt(mut self) -> NttPolynomial {
         ntt::forward_ntt(&mut self.0);
@@ -54,7 +53,7 @@ impl Polynomial {
         msg
     }
 
-    /// Sample noise polynomial via the sealed [`CbdWidth`] trait.
+    /// Sample noise polynomial via CBD.
     #[must_use]
     pub fn sample_cbd<Eta: CbdWidth>(buf: &[u8]) -> Self {
         let mut p = Self::zero();

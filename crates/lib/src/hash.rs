@@ -29,8 +29,7 @@ pub fn hash_g(input: impl AsRef<[u8]>) -> [u8; 64] {
     Sha3_512::digest(input).into()
 }
 
-/// `PRF_eta(seed, nonce) = SHAKE-256(seed || nonce)`, squeezed to fill
-/// `output`.
+/// `PRF(seed, nonce) = SHAKE-256(seed || nonce)`, squeezed into `output`.
 pub fn prf(seed: impl AsRef<[u8]>, nonce: u8, output: &mut [u8]) {
     Shake256::default()
         .chain(seed)
@@ -39,14 +38,12 @@ pub fn prf(seed: impl AsRef<[u8]>, nonce: u8, output: &mut [u8]) {
         .read(output);
 }
 
-/// SHAKE-128 XOF absorber for matrix sampling. Absorbs seed || x || y, returns
-/// reader for uniform bytes.
+/// SHAKE-128 XOF: absorbs `seed || x || y`, returns reader.
 pub fn xof_absorb(seed: impl AsRef<[u8]>, x: u8, y: u8) -> impl XofReader {
     Shake128::default().chain(seed).chain([x, y]).finalize_xof()
 }
 
-/// J(key, ct) = SHAKE-256(key || ct) -> 32 bytes. Rejection-key PRF for
-/// implicit reject.
+/// J(key, ct) = SHAKE-256(key || ct) -> 32 bytes (implicit-reject PRF).
 pub fn rkprf(key: impl AsRef<[u8]>, ct: impl AsRef<[u8]>) -> [u8; SSBYTES] {
     let mut out = [0u8; SSBYTES];
     Shake256::default()

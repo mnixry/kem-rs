@@ -53,7 +53,6 @@ pub fn set_lane_width(w: LaneWidth) {
     LANE_WIDTH.store(w as u8, Ordering::Relaxed);
 }
 
-/// Read the current global SIMD lane width.
 #[must_use]
 pub fn get_lane_width() -> LaneWidth {
     LANE_WIDTH.load(Ordering::Relaxed).into()

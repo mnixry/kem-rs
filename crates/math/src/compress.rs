@@ -1,8 +1,7 @@
 //! Sealed compression-width traits and compress/decompress operations.
 //!
-//! Each ML-KEM compression width (D=1, 4, 5, 10, 11, 12) is a zero-sized marker
-//! type implementing [`CompressWidth`]. This eliminates runtime `match d { ...
-//! }` dispatch and the associated `unreachable!()` branches.
+//! Each compression width (D=1,4,5,10,11) is a zero-sized marker type
+//! implementing [`CompressWidth`], eliminating runtime dispatch.
 
 use crate::{N, Q, SYMBYTES};
 
@@ -60,8 +59,6 @@ const fn decompress_coeff(y: u16, d: u32) -> u16 {
     (((y as u32) * (Q as u32) + (1u32 << (d - 1))) >> d) as u16
 }
 
-// -- D1: message encode/decode -----------------------------------------------
-
 impl CompressWidth for D1 {
     fn compress_poly(r: &mut [u8], a: &[i16; N]) {
         for i in 0..N / 8 {
@@ -85,8 +82,6 @@ impl CompressWidth for D1 {
     }
 }
 
-// -- D4: ML-KEM-512/768 Dv --------------------------------------------------
-
 impl CompressWidth for D4 {
     fn compress_poly(r: &mut [u8], a: &[i16; N]) {
         for i in 0..N / 2 {
@@ -103,8 +98,6 @@ impl CompressWidth for D4 {
         }
     }
 }
-
-// -- D5: ML-KEM-1024 Dv -----------------------------------------------------
 
 impl CompressWidth for D5 {
     fn compress_poly(r: &mut [u8], a: &[i16; N]) {
@@ -133,8 +126,6 @@ impl CompressWidth for D5 {
     }
 }
 
-// -- D10: ML-KEM-512/768 Du -------------------------------------------------
-
 impl CompressWidth for D10 {
     fn compress_poly(r: &mut [u8], a: &[i16; N]) {
         for i in 0..N / 4 {
@@ -159,8 +150,6 @@ impl CompressWidth for D10 {
         }
     }
 }
-
-// -- D11: ML-KEM-1024 Du ----------------------------------------------------
 
 impl CompressWidth for D11 {
     fn compress_poly(r: &mut [u8], a: &[i16; N]) {
