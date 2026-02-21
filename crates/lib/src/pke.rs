@@ -3,12 +3,9 @@
 //! Generic over [`ParameterSet`] with no runtime dispatch. Noise via sealed
 //! [`CbdWidth`]; compression via sealed [`CompressWidth`].
 
-use kem_math::{CbdWidthParams, Polynomial, SYMBYTES};
+use kem_math::{ByteArray, CbdWidthParams, Polynomial, SYMBYTES};
 
-use crate::{
-    hash,
-    params::{ByteArray, ParameterSet},
-};
+use crate::{hash, params::ParameterSet};
 
 /// Deterministic IND-CPA key generation.
 pub(crate) fn indcpa_keypair_derand<P: ParameterSet>(

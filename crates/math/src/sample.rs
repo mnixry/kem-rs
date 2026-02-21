@@ -1,6 +1,6 @@
 //! Deterministic sampling: sealed CBD noise traits and rejection-uniform.
 
-use crate::{N, Q};
+use crate::{ByteArray, N, Q};
 
 mod sealed {
     pub trait Sealed {}
@@ -9,6 +9,7 @@ mod sealed {
 pub trait CbdWidthParams: sealed::Sealed {
     const ETA: usize;
     const BUF_BYTES: usize;
+    type Buffer: ByteArray;
 }
 
 macro_rules! cbd_width {
@@ -19,6 +20,7 @@ macro_rules! cbd_width {
             impl CbdWidthParams for $name {
                 const ETA: usize = $eta;
                 const BUF_BYTES: usize = $poly_bytes;
+                type Buffer = [u8; $poly_bytes];
             }
         )*
     };

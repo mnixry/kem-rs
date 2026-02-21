@@ -4,30 +4,14 @@
 //! including K-dependent algebra types, eliminating runtime dispatch.
 
 use kem_math::{
-    CbdWidth, CompressWidth, D4, D5, D10, D11, Eta2, Eta3, NttMatrix, NttPolynomial, NttVector,
-    Polynomial, Vector, reject_uniform,
+    ByteArray, CbdWidth, CompressWidth, D4, D5, D10, D11, Eta2, Eta3, NttMatrix, NttPolynomial,
+    NttVector, Polynomial, Vector, reject_uniform,
 };
 pub use kem_math::{N, POLYBYTES, Q, SYMBYTES};
-use zeroize::Zeroize;
 
 use crate::hash::XofReader;
 
 pub const SSBYTES: usize = 32;
-
-pub trait ByteArray:
-    AsRef<[u8]> + AsMut<[u8]> + Clone + core::fmt::Debug + Zeroize + Send + Sync + 'static {
-    const LEN: usize;
-    fn zeroed() -> Self;
-}
-
-impl<const SIZE: usize> ByteArray for [u8; SIZE] {
-    const LEN: usize = SIZE;
-
-    #[inline]
-    fn zeroed() -> Self {
-        [0u8; SIZE]
-    }
-}
 
 mod sealed {
     pub trait Sealed {}
@@ -217,10 +201,10 @@ fn sample_noise_ntt<Eta: CbdWidth, const K: usize>(
     seed: &[u8; SYMBYTES], nonce: &mut u8,
 ) -> NttVector<K> {
     let mut v = NttVector::<K>::zero();
-    let mut buf = [0u8; 192]; // max CBD buffer: eta=3 -> 192 bytes
+    let mut buf = Eta::Buffer::zeroed();
     for p in v.polys_mut() {
-        crate::hash::prf(seed, *nonce, &mut buf[..Eta::BUF_BYTES]);
-        let poly = Polynomial::sample_cbd::<Eta>(&buf[..Eta::BUF_BYTES]);
+        crate::hash::prf(seed, *nonce, buf.as_mut());
+        let poly = Polynomial::sample_cbd::<Eta>(buf.as_ref());
         *p = poly.ntt();
         *nonce += 1;
     }
@@ -231,10 +215,10 @@ fn sample_noise_std<Eta: CbdWidth, const K: usize>(
     seed: &[u8; SYMBYTES], nonce: &mut u8,
 ) -> Vector<K> {
     let mut v = Vector::<K>::zero();
-    let mut buf = [0u8; 192];
+    let mut buf = Eta::Buffer::zeroed();
     for p in v.polys_mut() {
-        crate::hash::prf(seed, *nonce, &mut buf[..Eta::BUF_BYTES]);
-        *p = Polynomial::sample_cbd::<Eta>(&buf[..Eta::BUF_BYTES]);
+        crate::hash::prf(seed, *nonce, buf.as_mut());
+        *p = Polynomial::sample_cbd::<Eta>(buf.as_ref());
         *nonce += 1;
     }
     v

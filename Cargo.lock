@@ -631,6 +631,9 @@ dependencies = [
 [[package]]
 name = "kem-math"
 version = "0.1.0"
+dependencies = [
+ "zeroize",
+]
 
 [[package]]
 name = "kem-rs"

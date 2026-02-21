@@ -1,9 +1,10 @@
 //! Deterministic and randomized ML-KEM behavior checks.
 #![feature(macro_metavar_expr_concat)]
 
+use kem_math::ByteArray;
 use kem_rs::{
     Ciphertext, MlKem512, MlKem768, MlKem1024, ParameterSet, decapsulate, encapsulate,
-    encapsulate_derand, keypair, keypair_derand, params::ByteArray,
+    encapsulate_derand, keypair, keypair_derand,
 };
 use rand_core::UnwrapErr;
 

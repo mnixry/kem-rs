@@ -4,11 +4,12 @@
 //! Output sizes are derived from [`ParameterSet`] associated types.
 
 use ctutils::{CtAssign, CtEq};
+use kem_math::ByteArray;
 use rand_core::CryptoRng;
 
 use crate::{
     hash,
-    params::{ByteArray, ParameterSet, SSBYTES, SYMBYTES},
+    params::{ParameterSet, SSBYTES, SYMBYTES},
     pke,
     types::{Ciphertext, PublicKey, SecretKey, SharedSecret},
 };

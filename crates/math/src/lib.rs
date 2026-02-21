@@ -27,6 +27,22 @@ pub use compress::{CompressWidth, D4, D5, D10, D11};
 pub use poly::{NttMatrix, NttPolynomial, NttVector, Polynomial, Vector};
 pub use sample::{CbdWidth, CbdWidthParams, Eta2, Eta3, reject_uniform};
 pub use simd::{LaneWidth, get_lane_width, set_lane_width};
+use zeroize::Zeroize;
+
+pub trait ByteArray:
+    AsRef<[u8]> + AsMut<[u8]> + Clone + core::fmt::Debug + Zeroize + Send + Sync + 'static {
+    const LEN: usize;
+    fn zeroed() -> Self;
+}
+
+impl<const SIZE: usize> ByteArray for [u8; SIZE] {
+    const LEN: usize = SIZE;
+
+    #[inline]
+    fn zeroed() -> Self {
+        [0u8; SIZE]
+    }
+}
 
 /// Polynomial ring degree.
 pub const N: usize = 256;
