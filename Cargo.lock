@@ -629,6 +629,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "kem-hash"
+version = "0.1.0"
+dependencies = [
+ "keccak",
+]
+
+[[package]]
 name = "kem-math"
 version = "0.1.0"
 dependencies = [
@@ -645,6 +652,7 @@ dependencies = [
  "ctutils",
  "getrandom 0.4.1",
  "hex",
+ "kem-hash",
  "kem-math",
  "ml-kem",
  "pprof",
@@ -652,7 +660,6 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "sha3",
  "zeroize",
 ]
 

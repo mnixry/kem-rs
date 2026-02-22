@@ -14,7 +14,6 @@
 
 #![deny(unsafe_code)]
 
-pub mod hash;
 pub mod kem;
 pub mod params;
 pub mod pke;

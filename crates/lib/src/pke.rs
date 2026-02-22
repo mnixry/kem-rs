@@ -5,7 +5,7 @@
 
 use kem_math::{ByteArray, CbdWidthParams, Polynomial, SYMBYTES};
 
-use crate::{hash, params::ParameterSet};
+use crate::params::ParameterSet;
 
 /// Deterministic IND-CPA key generation.
 pub(crate) fn indcpa_keypair_derand<P: ParameterSet>(
@@ -14,7 +14,7 @@ pub(crate) fn indcpa_keypair_derand<P: ParameterSet>(
     let mut g_input = [0u8; SYMBYTES + 1];
     g_input[..SYMBYTES].copy_from_slice(coins);
     g_input[SYMBYTES] = P::K as u8;
-    let buf = hash::hash_g(g_input);
+    let buf = kem_hash::hash_g(g_input);
     let public_seed: &[u8; SYMBYTES] = buf[..SYMBYTES].first_chunk().expect("buf is 64 bytes");
     let noise_seed: &[u8; SYMBYTES] = buf[SYMBYTES..].first_chunk().expect("buf is 64 bytes");
 
@@ -54,15 +54,10 @@ pub(crate) fn indcpa_enc<P: ParameterSet>(
     let r_hat = P::sample_noise_eta1(coins, &mut nonce);
     let e1 = P::sample_noise_eta2(coins, &mut nonce);
 
+    let buf_len = <<P as ParameterSet>::Eta2 as CbdWidthParams>::BUF_BYTES;
     let mut e2_buf = [0u8; 192];
-    hash::prf(
-        coins,
-        nonce,
-        &mut e2_buf[..<<P as ParameterSet>::Eta2 as CbdWidthParams>::BUF_BYTES],
-    );
-    let e2 = Polynomial::sample_cbd::<P::Eta2>(
-        &e2_buf[..<<P as ParameterSet>::Eta2 as CbdWidthParams>::BUF_BYTES],
-    );
+    kem_hash::prf(coins, nonce, &mut e2_buf[..buf_len]);
+    let e2 = Polynomial::sample_cbd::<P::Eta2>(&e2_buf[..buf_len]);
 
     let u_hat = P::mat_mul_vec(&a_hat_t, &r_hat);
     let u_std = P::inv_ntt_vec(u_hat);

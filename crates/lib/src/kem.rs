@@ -8,7 +8,6 @@ use kem_math::ByteArray;
 use rand_core::CryptoRng;
 
 use crate::{
-    hash,
     params::{ParameterSet, SSBYTES, SYMBYTES},
     pke,
     types::{Ciphertext, PublicKey, SecretKey, SharedSecret},
@@ -34,7 +33,7 @@ pub fn keypair_derand<P: ParameterSet>(coins: &[u8; 2 * SYMBYTES]) -> (PublicKey
     sk_mut[P::INDCPA_SK_BYTES..P::INDCPA_SK_BYTES + P::PK_BYTES]
         .copy_from_slice(&pk_arr.as_ref()[..P::PK_BYTES]);
 
-    let h_pk = hash::hash_h(&pk_arr.as_ref()[..P::PK_BYTES]);
+    let h_pk = kem_hash::hash_h(&pk_arr.as_ref()[..P::PK_BYTES]);
     sk_mut[P::SK_BYTES - 2 * SYMBYTES..P::SK_BYTES - SYMBYTES].copy_from_slice(&h_pk);
     sk_mut[P::SK_BYTES - SYMBYTES..P::SK_BYTES].copy_from_slice(z);
 
@@ -59,10 +58,10 @@ pub fn encapsulate_derand<P: ParameterSet>(
 ) -> (Ciphertext<P>, SharedSecret) {
     let mut buf = [0u8; 2 * SYMBYTES];
     buf[..SYMBYTES].copy_from_slice(coins);
-    let h_pk = hash::hash_h(pk.as_ref());
+    let h_pk = kem_hash::hash_h(pk.as_ref());
     buf[SYMBYTES..].copy_from_slice(&h_pk);
 
-    let kr = hash::hash_g(buf);
+    let kr = kem_hash::hash_g(buf);
     let (k_half, r_half) = kr.split_at(SYMBYTES);
     let k: &[u8; SYMBYTES] = k_half
         .first_chunk()
@@ -107,7 +106,7 @@ pub fn decapsulate<P: ParameterSet>(ct: &Ciphertext<P>, sk: &SecretKey<P>) -> Sh
     let mut buf = [0u8; 2 * SYMBYTES];
     buf[..SYMBYTES].copy_from_slice(&m_prime);
     buf[SYMBYTES..].copy_from_slice(h);
-    let kr = hash::hash_g(buf);
+    let kr = kem_hash::hash_g(buf);
     let (k_half, r_half) = kr.split_at(SYMBYTES);
     let k: &[u8; SYMBYTES] = k_half
         .first_chunk()
@@ -119,7 +118,7 @@ pub fn decapsulate<P: ParameterSet>(ct: &Ciphertext<P>, sk: &SecretKey<P>) -> Sh
     let ct_prime = pke::indcpa_enc::<P>(pk, &m_prime, r);
 
     let ok = ct.as_ref().ct_eq(ct_prime.as_ref());
-    let rejection = hash::rkprf(z, ct.as_ref());
+    let rejection = kem_hash::rkprf(z, ct.as_ref());
 
     let mut ss = [0u8; SSBYTES];
     ss.copy_from_slice(k);

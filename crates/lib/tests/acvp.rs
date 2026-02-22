@@ -1,11 +1,10 @@
 use std::collections::HashMap;
 
 use kem_math::ByteArray;
+use kem_hash::hash_h;
 use kem_rs::{
     Ciphertext, MlKem512, MlKem768, MlKem1024, ParameterSet, PublicKey, SecretKey, decapsulate,
-    encapsulate_derand,
-    hash::hash_h,
-    keypair_derand,
+    encapsulate_derand, keypair_derand,
     params::{Q, SYMBYTES},
 };
 use serde::{Deserialize, de};
