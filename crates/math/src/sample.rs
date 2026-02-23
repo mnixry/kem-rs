@@ -33,12 +33,12 @@ cbd_width!(
 
 /// Sealed trait for CBD noise sampling width.
 pub trait CbdWidth: CbdWidthParams {
-    fn sample(r: &mut [i16; N], buf: &[u8]);
+    fn sample(r: &mut [i16; N], buf: &<Self as CbdWidthParams>::Buffer);
 }
 
 impl CbdWidth for Eta2 {
     #[inline]
-    fn sample(r: &mut [i16; N], buf: &[u8]) {
+    fn sample(r: &mut [i16; N], buf: &<Self as CbdWidthParams>::Buffer) {
         debug_assert!(buf.len() >= 2 * N / 4);
         for i in 0..N / 8 {
             let t =
@@ -55,7 +55,7 @@ impl CbdWidth for Eta2 {
 
 impl CbdWidth for Eta3 {
     #[inline]
-    fn sample(r: &mut [i16; N], buf: &[u8]) {
+    fn sample(r: &mut [i16; N], buf: &<Self as CbdWidthParams>::Buffer) {
         debug_assert!(buf.len() >= 3 * N / 4);
         for i in 0..N / 4 {
             let t =

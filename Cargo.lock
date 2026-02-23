@@ -633,6 +633,7 @@ name = "kem-hash"
 version = "0.1.0"
 dependencies = [
  "keccak",
+ "kem-math",
 ]
 
 [[package]]

@@ -1,7 +1,7 @@
 use core::ops;
 
 use super::NttPolynomial;
-use crate::{N, SYMBYTES, compress::CompressWidth, encode, ntt, sample::CbdWidth};
+use crate::{CbdWidthParams, N, SYMBYTES, compress::CompressWidth, encode, ntt, sample::CbdWidth};
 
 /// Polynomial in standard (coefficient) form over `R_q = Z_q[X]/(X^{256}+1)`.
 #[derive(Clone, Copy)]
@@ -55,7 +55,7 @@ impl Polynomial {
 
     /// Sample noise polynomial via CBD.
     #[must_use]
-    pub fn sample_cbd<Eta: CbdWidth>(buf: &[u8]) -> Self {
+    pub fn sample_cbd<Eta: CbdWidth>(buf: &<Eta as CbdWidthParams>::Buffer) -> Self {
         let mut p = Self::zero();
         Eta::sample(&mut p.0, buf);
         p

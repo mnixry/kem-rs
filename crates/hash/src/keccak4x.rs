@@ -6,6 +6,8 @@
 
 use core::simd::u64x4;
 
+use kem_math::{ByteArray, CbdWidth};
+
 use crate::{SHAKE_PAD, SHAKE128_RATE, SHAKE256_RATE};
 
 const PLEN: usize = 25;
@@ -86,13 +88,9 @@ pub fn xof_absorb_x4(seed: &[u8; 32], indices: [(u8, u8); 4]) -> Shake128x4Reade
 ///
 /// All four output slices **must** have the same length.
 /// For remainder batches, pad `nonces` with `0` and ignore extra output.
-pub fn prf_x4(
-    seed: &[u8; 32], nonces: [u8; 4], out0: &mut [u8], out1: &mut [u8], out2: &mut [u8],
-    out3: &mut [u8],
-) {
-    let out_len = out0.len();
-    debug_assert!(out1.len() == out_len && out2.len() == out_len && out3.len() == out_len);
-    let outputs = [out0, out1, out2, out3];
+#[must_use]
+pub fn prf_x4<Eta: CbdWidth>(seed: &[u8; 32], nonces: [u8; 4]) -> [Eta::Buffer; 4] {
+    let mut outputs: [_; 4] = core::array::from_fn(|_| Eta::Buffer::zeroed());
 
     let mut state = [u64x4::splat(0); PLEN];
     absorb_seed(&mut state, seed);
@@ -109,18 +107,18 @@ pub fn prf_x4(
     keccak::simd::f1600x4(&mut state);
 
     let mut written = 0;
-    while written < out_len {
-        let chunk = (out_len - written).min(SHAKE256_RATE);
+    while written < Eta::BUF_BYTES {
+        let chunk = (Eta::BUF_BYTES - written).min(SHAKE256_RATE);
         let full_words = chunk / 8;
         let tail_bytes = chunk % 8;
 
         for (i, s) in state.iter().enumerate().take(full_words) {
             let lanes = s.to_array();
             let off = written + i * 8;
-            outputs[0][off..off + 8].copy_from_slice(&lanes[0].to_le_bytes());
-            outputs[1][off..off + 8].copy_from_slice(&lanes[1].to_le_bytes());
-            outputs[2][off..off + 8].copy_from_slice(&lanes[2].to_le_bytes());
-            outputs[3][off..off + 8].copy_from_slice(&lanes[3].to_le_bytes());
+            outputs[0].as_mut()[off..off + 8].copy_from_slice(&lanes[0].to_le_bytes());
+            outputs[1].as_mut()[off..off + 8].copy_from_slice(&lanes[1].to_le_bytes());
+            outputs[2].as_mut()[off..off + 8].copy_from_slice(&lanes[2].to_le_bytes());
+            outputs[3].as_mut()[off..off + 8].copy_from_slice(&lanes[3].to_le_bytes());
         }
         if tail_bytes > 0 {
             let lanes = state[full_words].to_array();
@@ -129,15 +127,17 @@ pub fn prf_x4(
             let b1 = lanes[1].to_le_bytes();
             let b2 = lanes[2].to_le_bytes();
             let b3 = lanes[3].to_le_bytes();
-            outputs[0][off..off + tail_bytes].copy_from_slice(&b0[..tail_bytes]);
-            outputs[1][off..off + tail_bytes].copy_from_slice(&b1[..tail_bytes]);
-            outputs[2][off..off + tail_bytes].copy_from_slice(&b2[..tail_bytes]);
-            outputs[3][off..off + tail_bytes].copy_from_slice(&b3[..tail_bytes]);
+            outputs[0].as_mut()[off..off + tail_bytes].copy_from_slice(&b0[..tail_bytes]);
+            outputs[1].as_mut()[off..off + tail_bytes].copy_from_slice(&b1[..tail_bytes]);
+            outputs[2].as_mut()[off..off + tail_bytes].copy_from_slice(&b2[..tail_bytes]);
+            outputs[3].as_mut()[off..off + tail_bytes].copy_from_slice(&b3[..tail_bytes]);
         }
 
         written += chunk;
-        if written < out_len {
+        if written < Eta::BUF_BYTES {
             keccak::simd::f1600x4(&mut state);
         }
     }
+
+    outputs
 }

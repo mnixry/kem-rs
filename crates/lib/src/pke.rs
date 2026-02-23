@@ -3,7 +3,7 @@
 //! Generic over [`ParameterSet`] with no runtime dispatch. Noise via sealed
 //! [`CbdWidth`]; compression via sealed [`CompressWidth`].
 
-use kem_math::{ByteArray, CbdWidthParams, Polynomial, SYMBYTES};
+use kem_math::{ByteArray, Polynomial, SYMBYTES};
 
 use crate::params::ParameterSet;
 
@@ -54,10 +54,7 @@ pub(crate) fn indcpa_enc<P: ParameterSet>(
     let r_hat = P::sample_noise_eta1(coins, &mut nonce);
     let e1 = P::sample_noise_eta2(coins, &mut nonce);
 
-    let buf_len = <<P as ParameterSet>::Eta2 as CbdWidthParams>::BUF_BYTES;
-    let mut e2_buf = [0u8; 192];
-    kem_hash::prf(coins, nonce, &mut e2_buf[..buf_len]);
-    let e2 = Polynomial::sample_cbd::<P::Eta2>(&e2_buf[..buf_len]);
+    let e2 = Polynomial::sample_cbd::<P::Eta2>(&kem_hash::prf::<P::Eta2>(coins, nonce));
 
     let u_hat = P::mat_mul_vec(&a_hat_t, &r_hat);
     let u_std = P::inv_ntt_vec(u_hat);

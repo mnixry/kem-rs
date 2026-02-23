@@ -3,13 +3,12 @@
 //! The sealed [`ParameterSet`] trait encodes all parameters at the type level,
 //! including K-dependent algebra types, eliminating runtime dispatch.
 
+use kem_hash::SHAKE128_RATE;
 use kem_math::{
     ByteArray, CbdWidth, CompressWidth, D4, D5, D10, D11, Eta2, Eta3, NttMatrix, NttPolynomial,
     NttVector, Polynomial, Vector,
 };
 pub use kem_math::{N, POLYBYTES, Q, SYMBYTES};
-
-use kem_hash::SHAKE128_RATE;
 
 pub const SSBYTES: usize = 32;
 
@@ -216,8 +215,7 @@ fn gen_matrix_inner<const K: usize>(seed: &[u8; SYMBYTES], transposed: bool) -> 
             for lane in 0..live {
                 let mut pos = 0;
                 while ctrs[lane] < N && pos + 3 <= SHAKE128_RATE {
-                    let val0 = (u16::from(bufs[lane][pos])
-                        | (u16::from(bufs[lane][pos + 1]) << 8))
+                    let val0 = (u16::from(bufs[lane][pos]) | (u16::from(bufs[lane][pos + 1]) << 8))
                         & 0x0FFF;
                     let val1 = (u16::from(bufs[lane][pos + 1]) >> 4)
                         | (u16::from(bufs[lane][pos + 2]) << 4);
@@ -247,27 +245,16 @@ fn sample_noise_ntt<Eta: CbdWidth, const K: usize>(
     seed: &[u8; SYMBYTES], nonce: &mut u8,
 ) -> NttVector<K> {
     let mut v = NttVector::<K>::zero();
-    let mut b0 = Eta::Buffer::zeroed();
-    let mut b1 = Eta::Buffer::zeroed();
-    let mut b2 = Eta::Buffer::zeroed();
-    let mut b3 = Eta::Buffer::zeroed();
+    // let mut bufs: [_; 4] = core::array::from_fn(|_| Eta::Buffer::zeroed());
     let nonces = [
         *nonce,
         nonce.wrapping_add(1),
         if K > 2 { nonce.wrapping_add(2) } else { 0 },
         if K > 3 { nonce.wrapping_add(3) } else { 0 },
     ];
-    kem_hash::prf_x4(
-        seed,
-        nonces,
-        b0.as_mut(),
-        b1.as_mut(),
-        b2.as_mut(),
-        b3.as_mut(),
-    );
-    let bufs = [&b0, &b1, &b2, &b3];
+    let bufs = kem_hash::prf_x4::<Eta>(seed, nonces);
     for (i, p) in v.polys_mut().iter_mut().enumerate() {
-        *p = Polynomial::sample_cbd::<Eta>(bufs[i].as_ref()).ntt();
+        *p = Polynomial::sample_cbd::<Eta>(&bufs[i]).ntt();
     }
     *nonce += K as u8;
     v
@@ -277,27 +264,16 @@ fn sample_noise_std<Eta: CbdWidth, const K: usize>(
     seed: &[u8; SYMBYTES], nonce: &mut u8,
 ) -> Vector<K> {
     let mut v = Vector::<K>::zero();
-    let mut b0 = Eta::Buffer::zeroed();
-    let mut b1 = Eta::Buffer::zeroed();
-    let mut b2 = Eta::Buffer::zeroed();
-    let mut b3 = Eta::Buffer::zeroed();
+
     let nonces = [
         *nonce,
         nonce.wrapping_add(1),
         if K > 2 { nonce.wrapping_add(2) } else { 0 },
         if K > 3 { nonce.wrapping_add(3) } else { 0 },
     ];
-    kem_hash::prf_x4(
-        seed,
-        nonces,
-        b0.as_mut(),
-        b1.as_mut(),
-        b2.as_mut(),
-        b3.as_mut(),
-    );
-    let bufs = [&b0, &b1, &b2, &b3];
+    let bufs = kem_hash::prf_x4::<Eta>(seed, nonces);
     for (i, p) in v.polys_mut().iter_mut().enumerate() {
-        *p = Polynomial::sample_cbd::<Eta>(bufs[i].as_ref());
+        *p = Polynomial::sample_cbd::<Eta>(&bufs[i]);
     }
     *nonce += K as u8;
     v
