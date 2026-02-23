@@ -8,8 +8,8 @@ use core::{
 
 pub use kernels::{barrett_reduce_vec, fqmul_vec};
 pub use poly_ops::{
-    poly_add, poly_add_assign, poly_basemul, poly_mul_scalar_montgomery, poly_reduce, poly_sub,
-    poly_to_montgomery,
+    poly_add, poly_add_assign, poly_basemul, poly_compress_coeffs, poly_decompress_coeffs,
+    poly_mul_scalar_montgomery, poly_reduce, poly_sub, poly_to_montgomery,
 };
 
 /// SIMD lane width for `i16` operations.

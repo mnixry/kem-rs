@@ -1,6 +1,8 @@
 use core::simd::{Simd, prelude::*};
 
-use super::kernels::{barrett_reduce_vec, fqmul_vec, montgomery_reduce_vec};
+use super::kernels::{
+    barrett_reduce_vec, compress_d_vec, decompress_d_vec, fqmul_vec, montgomery_reduce_vec,
+};
 use crate::{N, Q};
 
 /// Barrett-reduce all `N` coefficients in-place.
@@ -94,6 +96,50 @@ fn poly_mul_scalar_montgomery_lanes<const L: usize>(c: &mut [i16; N], scalar: i1
         let v = Simd::<i16, L>::from_slice(&c[i..]);
         fqmul_vec(v, s).copy_to_slice(&mut c[i..]);
     }
+}
+
+/// SIMD csubq + Barrett compress all `N` coefficients.
+///
+/// `out[i] = compress(coeffs[i], d)` for `d ∈ {1,4,5,10,11}`.
+#[inline]
+pub fn poly_compress_coeffs(coeffs: &[i16; N], d: u32) -> [i16; N] {
+    super::dispatch_lanes!(poly_compress_coeffs_lanes(coeffs, d))
+}
+
+#[inline]
+fn poly_compress_coeffs_lanes<const L: usize>(coeffs: &[i16; N], d: u32) -> [i16; N] {
+    const { assert!(N.is_multiple_of(L)) }
+    let mut outs = [0i16; N];
+    for (out, chunk) in (outs.as_chunks_mut::<L>().0)
+        .iter_mut()
+        .zip(coeffs.as_chunks::<L>().0)
+    {
+        let a = Simd::from_array(*chunk);
+        *out = compress_d_vec(a, d).into();
+    }
+    outs
+}
+
+/// SIMD decompress all `N` coefficients.
+///
+/// `out[i] = decompress(compressed[i], d)` for `d ∈ {1,4,5,10,11}`.
+#[inline]
+pub fn poly_decompress_coeffs(compressed: &[i16; N], d: u32) -> [i16; N] {
+    super::dispatch_lanes!(poly_decompress_coeffs_lanes(compressed, d))
+}
+
+#[inline]
+fn poly_decompress_coeffs_lanes<const L: usize>(compressed: &[i16; N], d: u32) -> [i16; N] {
+    const { assert!(N.is_multiple_of(L)) }
+    let mut outs = [0i16; N];
+    for (out, chunk) in (outs.as_chunks_mut::<L>().0)
+        .iter_mut()
+        .zip(compressed.as_chunks::<L>().0)
+    {
+        let y = Simd::from_array(*chunk);
+        *out = decompress_d_vec(y, d).into();
+    }
+    outs
 }
 
 /// Pointwise basemul: 64 degree-1 block multiplications in NTT domain.
