@@ -11,3 +11,6 @@ keccak = { version = "0.1.6", features = ["simd"] }
 
 [dependencies.kem-math]
 path = "../math"
+
+[lib]
+bench = false

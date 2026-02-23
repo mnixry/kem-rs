@@ -21,11 +21,11 @@ const SHA3_PAD: u8 = 0x06;
 
 pub use keccak1x::{hash_g, hash_h, rkprf};
 pub use keccak4x::{Shake128x4Reader, prf_x4, xof_absorb_x4};
-use kem_math::CbdWidth;
+use kem_math::{CbdWidth, SYMBYTES};
 
 /// Single-lane SHAKE-256 PRF via `prf_x4` with 3 dummy lanes.
 #[must_use]
-pub fn prf<Eta: CbdWidth>(seed: &[u8; 32], nonce: u8) -> Eta::Buffer {
+pub fn prf<Eta: CbdWidth>(seed: &[u8; SYMBYTES], nonce: u8) -> Eta::Buffer {
     let [result, ..] = prf_x4::<Eta>(seed, [nonce, 0, 0, 0]);
     result
 }

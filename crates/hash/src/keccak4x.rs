@@ -8,12 +8,12 @@ use core::simd::u64x4;
 
 use kem_math::{ByteArray, CbdWidth};
 
-use crate::{SHAKE_PAD, SHAKE128_RATE, SHAKE256_RATE};
+use crate::{SHAKE_PAD, SHAKE128_RATE, SHAKE256_RATE, SYMBYTES};
 
 const PLEN: usize = 25;
 const SHAKE128_RATE_WORDS: usize = SHAKE128_RATE / 8;
 
-fn absorb_seed(state: &mut [u64x4; PLEN], seed: &[u8; 32]) {
+fn absorb_seed(state: &mut [u64x4; PLEN], seed: &[u8; SYMBYTES]) {
     for (i, s) in state.iter_mut().enumerate().take(4) {
         let off = i * 8;
         let word = u64::from_le_bytes([
@@ -65,7 +65,7 @@ impl Shake128x4Reader {
 /// For remainder batches (fewer than 4 real elements), pad `indices` with
 /// dummy `(0, 0)` pairs and discard the corresponding output lanes.
 #[must_use]
-pub fn xof_absorb_x4(seed: &[u8; 32], indices: [(u8, u8); 4]) -> Shake128x4Reader {
+pub fn xof_absorb_x4(seed: &[u8; SYMBYTES], indices: [(u8, u8); 4]) -> Shake128x4Reader {
     let mut state = [u64x4::splat(0); PLEN];
     absorb_seed(&mut state, seed);
 
@@ -89,7 +89,7 @@ pub fn xof_absorb_x4(seed: &[u8; 32], indices: [(u8, u8); 4]) -> Shake128x4Reade
 /// All four output slices **must** have the same length.
 /// For remainder batches, pad `nonces` with `0` and ignore extra output.
 #[must_use]
-pub fn prf_x4<Eta: CbdWidth>(seed: &[u8; 32], nonces: [u8; 4]) -> [Eta::Buffer; 4] {
+pub fn prf_x4<Eta: CbdWidth>(seed: &[u8; SYMBYTES], nonces: [u8; 4]) -> [Eta::Buffer; 4] {
     let mut outputs: [_; 4] = core::array::from_fn(|_| Eta::Buffer::zeroed());
 
     let mut state = [u64x4::splat(0); PLEN];
@@ -113,24 +113,24 @@ pub fn prf_x4<Eta: CbdWidth>(seed: &[u8; 32], nonces: [u8; 4]) -> [Eta::Buffer; 
         let tail_bytes = chunk % 8;
 
         for (i, s) in state.iter().enumerate().take(full_words) {
-            let lanes = s.to_array();
             let off = written + i * 8;
-            outputs[0].as_mut()[off..off + 8].copy_from_slice(&lanes[0].to_le_bytes());
-            outputs[1].as_mut()[off..off + 8].copy_from_slice(&lanes[1].to_le_bytes());
-            outputs[2].as_mut()[off..off + 8].copy_from_slice(&lanes[2].to_le_bytes());
-            outputs[3].as_mut()[off..off + 8].copy_from_slice(&lanes[3].to_le_bytes());
+            for (output, lane) in outputs
+                .iter_mut()
+                .map(AsMut::as_mut)
+                .zip(s.to_array().map(u64::to_le_bytes))
+            {
+                output[off..off + 8].copy_from_slice(&lane);
+            }
         }
         if tail_bytes > 0 {
-            let lanes = state[full_words].to_array();
             let off = written + full_words * 8;
-            let b0 = lanes[0].to_le_bytes();
-            let b1 = lanes[1].to_le_bytes();
-            let b2 = lanes[2].to_le_bytes();
-            let b3 = lanes[3].to_le_bytes();
-            outputs[0].as_mut()[off..off + tail_bytes].copy_from_slice(&b0[..tail_bytes]);
-            outputs[1].as_mut()[off..off + tail_bytes].copy_from_slice(&b1[..tail_bytes]);
-            outputs[2].as_mut()[off..off + tail_bytes].copy_from_slice(&b2[..tail_bytes]);
-            outputs[3].as_mut()[off..off + tail_bytes].copy_from_slice(&b3[..tail_bytes]);
+            for (output, lane) in outputs
+                .iter_mut()
+                .map(AsMut::as_mut)
+                .zip(state[full_words].to_array().map(u64::to_le_bytes))
+            {
+                output[off..off + tail_bytes].copy_from_slice(&lane[..tail_bytes]);
+            }
         }
 
         written += chunk;

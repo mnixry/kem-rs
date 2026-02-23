@@ -245,13 +245,7 @@ fn sample_noise_ntt<Eta: CbdWidth, const K: usize>(
     seed: &[u8; SYMBYTES], nonce: &mut u8,
 ) -> NttVector<K> {
     let mut v = NttVector::<K>::zero();
-    // let mut bufs: [_; 4] = core::array::from_fn(|_| Eta::Buffer::zeroed());
-    let nonces = [
-        *nonce,
-        nonce.wrapping_add(1),
-        if K > 2 { nonce.wrapping_add(2) } else { 0 },
-        if K > 3 { nonce.wrapping_add(3) } else { 0 },
-    ];
+    let nonces: [_; 4] = core::array::from_fn(|i| nonce.wrapping_add(i as u8));
     let bufs = kem_hash::prf_x4::<Eta>(seed, nonces);
     for (i, p) in v.polys_mut().iter_mut().enumerate() {
         *p = Polynomial::sample_cbd::<Eta>(&bufs[i]).ntt();
@@ -264,13 +258,7 @@ fn sample_noise_std<Eta: CbdWidth, const K: usize>(
     seed: &[u8; SYMBYTES], nonce: &mut u8,
 ) -> Vector<K> {
     let mut v = Vector::<K>::zero();
-
-    let nonces = [
-        *nonce,
-        nonce.wrapping_add(1),
-        if K > 2 { nonce.wrapping_add(2) } else { 0 },
-        if K > 3 { nonce.wrapping_add(3) } else { 0 },
-    ];
+    let nonces: [_; 4] = core::array::from_fn(|i| nonce.wrapping_add(i as u8));
     let bufs = kem_hash::prf_x4::<Eta>(seed, nonces);
     for (i, p) in v.polys_mut().iter_mut().enumerate() {
         *p = Polynomial::sample_cbd::<Eta>(&bufs[i]);

@@ -8,3 +8,6 @@ workspace = true
 
 [dependencies]
 zeroize = { version = "1.8.2", features = ["derive"] }
+
+[lib]
+bench = false
