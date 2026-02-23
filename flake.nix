@@ -65,6 +65,7 @@
                 cargo-pgo
                 llvmPackages.bolt
                 gnuplot
+                pprof
                 taplo
               ]);
           };
