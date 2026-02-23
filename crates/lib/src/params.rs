@@ -195,48 +195,43 @@ fn gen_matrix_inner<const K: usize>(seed: &[u8; SYMBYTES], transposed: bool) -> 
     }
 
     let total = K * K;
-    let mut elem = 0;
-    while elem < total {
+    for elem in (0..total).step_by(4) {
         let live = (total - elem).min(4);
-        let batch = [
-            indices[elem],
-            if live > 1 { indices[elem + 1] } else { (0, 0) },
-            if live > 2 { indices[elem + 2] } else { (0, 0) },
-            if live > 3 { indices[elem + 3] } else { (0, 0) },
-        ];
+        let batch = std::array::from_fn(|i| indices.get(elem + i).copied().unwrap_or((0, 0)));
 
         let mut reader = kem_hash::xof_absorb_x4(seed, batch);
-        let mut coeffs = [[0i16; N]; 4];
-        let mut ctrs = [0usize; 4];
-        let mut bufs = [[0u8; SHAKE128_RATE]; 4];
+        let mut coefficients = [[0i16; N]; 4];
+        let mut counters = [0usize; 4];
 
-        while ctrs[..live].iter().any(|&c| c < N) {
-            reader.squeeze_blocks(&mut bufs);
+        while counters[..live].iter().any(|&c| c < N) {
+            let bufs = reader.squeeze_blocks();
             for lane in 0..live {
-                let mut pos = 0;
-                while ctrs[lane] < N && pos + 3 <= SHAKE128_RATE {
-                    let val0 = (u16::from(bufs[lane][pos]) | (u16::from(bufs[lane][pos + 1]) << 8))
-                        & 0x0FFF;
-                    let val1 = (u16::from(bufs[lane][pos + 1]) >> 4)
-                        | (u16::from(bufs[lane][pos + 2]) << 4);
-                    pos += 3;
-                    if val0 < Q as u16 {
-                        coeffs[lane][ctrs[lane]] = val0.cast_signed();
-                        ctrs[lane] += 1;
+                for pos in (0..SHAKE128_RATE).step_by(3) {
+                    if counters[lane] >= N {
+                        break;
                     }
-                    if ctrs[lane] < N && val1 < Q as u16 {
-                        coeffs[lane][ctrs[lane]] = val1.cast_signed();
-                        ctrs[lane] += 1;
+                    let val1 = u16::from_le_bytes([bufs[lane][pos], bufs[lane][pos + 1]]) & 0x0FFF;
+                    if val1 < Q as u16 {
+                        coefficients[lane][counters[lane]] = val1.cast_signed();
+                        counters[lane] += 1;
+                    }
+
+                    if counters[lane] >= N {
+                        break;
+                    }
+                    let val2 = u16::from_le_bytes([bufs[lane][pos + 1], bufs[lane][pos + 2]]) >> 4;
+                    if val2 < Q as u16 {
+                        coefficients[lane][counters[lane]] = val2.cast_signed();
+                        counters[lane] += 1;
                     }
                 }
             }
         }
 
-        for (k, c) in coeffs.iter().enumerate().take(live) {
+        for (k, c) in coefficients.iter().enumerate().take(live) {
             let (i, j) = ((elem + k) / K, (elem + k) % K);
             *a.rows_mut()[i].polys_mut()[j].coeffs_mut() = *c;
         }
-        elem += 4;
     }
     a
 }

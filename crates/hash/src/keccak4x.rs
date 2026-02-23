@@ -11,22 +11,10 @@ use kem_math::{ByteArray, CbdWidth};
 use crate::{SHAKE_PAD, SHAKE128_RATE, SHAKE256_RATE, SYMBYTES};
 
 const PLEN: usize = 25;
-const SHAKE128_RATE_WORDS: usize = SHAKE128_RATE / 8;
 
 fn absorb_seed(state: &mut [u64x4; PLEN], seed: &[u8; SYMBYTES]) {
-    for (i, s) in state.iter_mut().enumerate().take(4) {
-        let off = i * 8;
-        let word = u64::from_le_bytes([
-            seed[off],
-            seed[off + 1],
-            seed[off + 2],
-            seed[off + 3],
-            seed[off + 4],
-            seed[off + 5],
-            seed[off + 6],
-            seed[off + 7],
-        ]);
-        *s = u64x4::splat(word);
+    for (s, chunk) in state.iter_mut().zip(seed.as_chunks().0) {
+        *s = u64x4::splat(u64::from_le_bytes(*chunk));
     }
 }
 
@@ -42,20 +30,15 @@ pub struct Shake128x4Reader {
 impl Shake128x4Reader {
     /// Squeeze one SHAKE-128 rate block (168 bytes) from each of the 4 lanes.
     #[inline]
-    pub fn squeeze_blocks(&mut self, out: &mut [[u8; SHAKE128_RATE]; 4]) {
-        for (i, s) in self.state.iter().enumerate().take(SHAKE128_RATE_WORDS) {
-            let lanes = s.to_array();
-            let b0 = lanes[0].to_le_bytes();
-            let b1 = lanes[1].to_le_bytes();
-            let b2 = lanes[2].to_le_bytes();
-            let b3 = lanes[3].to_le_bytes();
-            let off = i * 8;
-            out[0][off..off + 8].copy_from_slice(&b0);
-            out[1][off..off + 8].copy_from_slice(&b1);
-            out[2][off..off + 8].copy_from_slice(&b2);
-            out[3][off..off + 8].copy_from_slice(&b3);
+    pub fn squeeze_blocks(&mut self) -> [[u8; SHAKE128_RATE]; 4] {
+        let mut outs = [[0u8; SHAKE128_RATE]; 4];
+        for (i, state) in self.state.iter().enumerate().take(SHAKE128_RATE / 8) {
+            for (j, word) in state.to_array().map(u64::to_le_bytes).iter().enumerate() {
+                outs[j][i * 8..(i + 1) * 8].copy_from_slice(word);
+            }
         }
         keccak::simd::f1600x4(&mut self.state);
+        outs
     }
 }
 

@@ -9,61 +9,70 @@ use crate::{SHA3_256_RATE, SHA3_512_RATE, SHA3_PAD, SHAKE_PAD, SHAKE256_RATE};
 const PLEN: usize = 25;
 
 #[inline]
-fn absorb_block(state: &mut [u64; PLEN], block: &[u8]) {
-    debug_assert!(block.len().is_multiple_of(8));
-    for (b, s) in block.chunks_exact(8).zip(state.iter_mut()) {
-        *s ^= u64::from_le_bytes([b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]]);
+fn absorb_block<const R: usize>(state: &mut [u64; PLEN], block: &[u8; R]) {
+    const { assert!(R.is_multiple_of(8)) }
+    for (s, b) in state.iter_mut().zip(block.as_chunks().0) {
+        *s ^= u64::from_le_bytes(*b);
     }
     keccak::f1600(state);
 }
 
-fn absorb_padded(state: &mut [u64; PLEN], input: &[u8], rate: usize, pad: u8) {
-    let mut offset = 0;
-    while offset + rate <= input.len() {
-        absorb_block(state, &input[offset..offset + rate]);
-        offset += rate;
+fn absorb_padded<const R: usize>(state: &mut [u64; PLEN], input: &[u8], pad: u8) {
+    let (blocks, remainder) = input.as_chunks::<R>();
+    for block in blocks {
+        absorb_block(state, block);
     }
-    let mut last = [0u8; 200];
-    let remaining = input.len() - offset;
-    last[..remaining].copy_from_slice(&input[offset..]);
+    let mut last = [0u8; R];
+    let remaining = remainder.len();
+    last[..remaining].copy_from_slice(remainder);
     last[remaining] = pad;
-    last[rate - 1] |= 0x80;
-    absorb_block(state, &last[..rate]);
+    last[R - 1] |= 0x80;
+    absorb_block(state, &last);
 }
 
 #[inline]
-fn squeeze(state: &[u64; PLEN], out: &mut [u8]) {
-    let mut written = 0;
-    for &word in state {
-        if written >= out.len() {
-            break;
-        }
-        let bytes = word.to_le_bytes();
-        let remaining = out.len() - written;
-        let n = remaining.min(8);
-        out[written..written + n].copy_from_slice(&bytes[..n]);
-        written += n;
+fn squeeze<const N: usize>(state: &[u64; PLEN]) -> [u8; N] {
+    const { assert!(N.is_multiple_of(8)) }
+    let mut out = [0u8; N];
+    for (chunk, word) in out.as_chunks_mut().0.iter_mut().zip(state) {
+        *chunk = word.to_le_bytes();
     }
+    out
 }
 
 /// H(input) = SHA3-256(input) -> 32 bytes.
 #[inline]
 pub fn hash_h(input: impl AsRef<[u8]>) -> [u8; 32] {
     let mut state = [0u64; PLEN];
-    absorb_padded(&mut state, input.as_ref(), SHA3_256_RATE, SHA3_PAD);
-    let mut out = [0u8; 32];
-    squeeze(&state, &mut out);
-    out
+    absorb_padded::<SHA3_256_RATE>(&mut state, input.as_ref(), SHA3_PAD);
+    squeeze(&state)
 }
 
 /// G(input) = SHA3-512(input) -> 64 bytes.
 #[inline]
 pub fn hash_g(input: impl AsRef<[u8]>) -> [u8; 64] {
     let mut state = [0u64; PLEN];
-    absorb_padded(&mut state, input.as_ref(), SHA3_512_RATE, SHA3_PAD);
-    let mut out = [0u8; 64];
-    squeeze(&state, &mut out);
-    out
+    absorb_padded::<SHA3_512_RATE>(&mut state, input.as_ref(), SHA3_PAD);
+    squeeze(&state)
+}
+
+#[inline]
+fn consume<const R: usize>(
+    state: &mut [u64; PLEN], block: &mut [u8; R], block_pos: &mut usize, src: &[u8],
+) {
+    let mut i = 0;
+    while i < src.len() {
+        let space = R - *block_pos;
+        let n = space.min(src.len() - i);
+        block[*block_pos..*block_pos + n].copy_from_slice(&src[i..i + n]);
+        *block_pos += n;
+        i += n;
+        if *block_pos == R {
+            absorb_block(state, block);
+            block.fill(0);
+            *block_pos = 0;
+        }
+    }
 }
 
 /// J(key, ct) = SHAKE-256(key || ct) -> 32 bytes (implicit-reject PRF).
@@ -72,36 +81,15 @@ pub fn rkprf(key: impl AsRef<[u8]>, ct: impl AsRef<[u8]>) -> [u8; 32] {
 
     let key = key.as_ref();
     let ct = ct.as_ref();
-    let rate = SHAKE256_RATE;
-
-    let mut block = [0u8; 200];
+    let mut block = [0u8; SHAKE256_RATE];
     let mut block_pos = 0;
-
-    let consume =
-        |state: &mut [u64; PLEN], block: &mut [u8; 200], block_pos: &mut usize, src: &[u8]| {
-            let mut i = 0;
-            while i < src.len() {
-                let space = rate - *block_pos;
-                let n = space.min(src.len() - i);
-                block[*block_pos..*block_pos + n].copy_from_slice(&src[i..i + n]);
-                *block_pos += n;
-                i += n;
-                if *block_pos == rate {
-                    absorb_block(state, &block[..rate]);
-                    block[..rate].fill(0);
-                    *block_pos = 0;
-                }
-            }
-        };
 
     consume(&mut state, &mut block, &mut block_pos, key);
     consume(&mut state, &mut block, &mut block_pos, ct);
 
     block[block_pos] = SHAKE_PAD;
-    block[rate - 1] |= 0x80;
-    absorb_block(&mut state, &block[..rate]);
+    block[block.len() - 1] |= 0x80;
+    absorb_block(&mut state, &block);
 
-    let mut out = [0u8; 32];
-    squeeze(&state, &mut out);
-    out
+    squeeze(&state)
 }
