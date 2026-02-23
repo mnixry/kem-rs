@@ -25,10 +25,9 @@ getrandom = { version = "0.4.1", features = ["sys_rng"] }
 hex = "0.4.3"
 ml-kem = { version = "0.2.3", features = ["deterministic"] }
 pprof = { version = "0.15.0", features = [
-    "flamegraph",
-    "protobuf-codec",
-    "frame-pointer",
-    "criterion",
+  "flamegraph",
+  "frame-pointer",
+  "criterion",
 ] }
 rand_core = "0.10.0"
 serde = { version = "1.0.228", features = ["derive"] }

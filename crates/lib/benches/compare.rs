@@ -100,9 +100,7 @@ fn compare_benches(c: &mut Criterion) {
 
 criterion_group! {
     name = benches;
-    config = Criterion::default()
-        .with_profiler(PProfProfiler::new(1000, Output::Flamegraph(None)))
-        .with_profiler(PProfProfiler::new(1000, Output::Protobuf));
+    config = Criterion::default().with_profiler(PProfProfiler::new(1000, Output::Flamegraph(None)));
     targets = compare_benches
 }
 criterion_main!(benches);
