@@ -13,8 +13,8 @@ pub fn poly_reduce(c: &mut [i16; N]) {
 
 #[inline]
 fn poly_reduce_lanes<const L: usize>(c: &mut [i16; N]) {
-    for ch in c.chunks_exact_mut(L) {
-        barrett_reduce_vec(Simd::<i16, L>::from_slice(ch)).copy_to_slice(ch);
+    for ch in c.as_chunks_mut::<L>().0 {
+        *ch = barrett_reduce_vec(Simd::from_array(*ch)).into();
     }
 }
 
@@ -26,13 +26,17 @@ pub fn poly_add(a: &[i16; N], b: &[i16; N]) -> [i16; N] {
 
 #[inline]
 fn poly_add_lanes<const L: usize>(a: &[i16; N], b: &[i16; N]) -> [i16; N] {
-    let mut r = [0i16; N];
-    for i in (0..N).step_by(L) {
-        let va = Simd::<i16, L>::from_slice(&a[i..]);
-        let vb = Simd::<i16, L>::from_slice(&b[i..]);
-        (va + vb).copy_to_slice(&mut r[i..]);
+    let mut ret = [0i16; N];
+    for ((a, b), r) in (a.as_chunks::<L>().0)
+        .iter()
+        .zip(b.as_chunks::<L>().0.iter())
+        .zip(ret.as_chunks_mut::<L>().0.iter_mut())
+    {
+        let va = Simd::from_array(*a);
+        let vb = Simd::from_array(*b);
+        *r = (va + vb).into();
     }
-    r
+    ret
 }
 
 /// `r[i] += b[i]`.
@@ -43,10 +47,13 @@ pub fn poly_add_assign(r: &mut [i16; N], b: &[i16; N]) {
 
 #[inline]
 fn poly_add_assign_lanes<const L: usize>(r: &mut [i16; N], b: &[i16; N]) {
-    for i in (0..N).step_by(L) {
-        let va = Simd::<i16, L>::from_slice(&r[i..]);
-        let vb = Simd::<i16, L>::from_slice(&b[i..]);
-        (va + vb).copy_to_slice(&mut r[i..]);
+    for (ret, b) in (r.as_chunks_mut::<L>().0)
+        .iter_mut()
+        .zip(b.as_chunks::<L>().0)
+    {
+        let mut r = Simd::from_array(*ret);
+        r += Simd::from_array(*b);
+        *ret = r.into();
     }
 }
 
@@ -58,13 +65,17 @@ pub fn poly_sub(a: &[i16; N], b: &[i16; N]) -> [i16; N] {
 
 #[inline]
 fn poly_sub_lanes<const L: usize>(a: &[i16; N], b: &[i16; N]) -> [i16; N] {
-    let mut r = [0i16; N];
-    for i in (0..N).step_by(L) {
-        let va = Simd::<i16, L>::from_slice(&a[i..]);
-        let vb = Simd::<i16, L>::from_slice(&b[i..]);
-        (va - vb).copy_to_slice(&mut r[i..]);
+    let mut ret = [0i16; N];
+    for ((a, b), r) in (a.as_chunks::<L>().0)
+        .iter()
+        .zip(b.as_chunks::<L>().0.iter())
+        .zip(ret.as_chunks_mut::<L>().0.iter_mut())
+    {
+        let va = Simd::from_array(*a);
+        let vb = Simd::from_array(*b);
+        *r = (va - vb).into();
     }
-    r
+    ret
 }
 
 /// Convert all coefficients to Montgomery domain: `c_i <- c_i * R mod q`.
@@ -77,9 +88,8 @@ pub fn poly_to_montgomery(c: &mut [i16; N]) {
 fn poly_to_montgomery_lanes<const L: usize>(c: &mut [i16; N]) {
     const F: i32 = ((1u64 << 32) % (Q as u64)) as i32; // R^2 mod q = 1353
     let f = Simd::<i32, L>::splat(F);
-    for i in (0..N).step_by(L) {
-        let v: Simd<i32, L> = Simd::<i16, L>::from_slice(&c[i..]).cast();
-        montgomery_reduce_vec(v * f).copy_to_slice(&mut c[i..]);
+    for chunk in c.as_chunks_mut::<L>().0 {
+        *chunk = montgomery_reduce_vec(Simd::from_array(*chunk).cast() * f).into();
     }
 }
 
@@ -92,9 +102,8 @@ pub fn poly_mul_scalar_montgomery(c: &mut [i16; N], scalar: i16) {
 #[inline]
 fn poly_mul_scalar_montgomery_lanes<const L: usize>(c: &mut [i16; N], scalar: i16) {
     let s = Simd::<i16, L>::splat(scalar);
-    for i in (0..N).step_by(L) {
-        let v = Simd::<i16, L>::from_slice(&c[i..]);
-        fqmul_vec(v, s).copy_to_slice(&mut c[i..]);
+    for chunk in c.as_chunks_mut::<L>().0 {
+        *chunk = fqmul_vec(Simd::from_array(*chunk), s).into();
     }
 }
 
