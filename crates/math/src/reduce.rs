@@ -1,20 +1,10 @@
 //! Montgomery and Barrett modular reduction for the ML-KEM field (q = 3329).
 
+#[cfg(test)]
 use crate::Q;
 
 /// q^{-1} mod 2^{16} (Montgomery inverse).
 pub const QINV: i16 = -3327;
-
-/// Montgomery reduction: computes `a * R^{-1} mod q` where R = 2^{16}.
-///
-/// Input: `a in {-q*2^{15}, ..., q*2^{15} - 1}`. Output: `r in {-q+1, ...,
-/// q-1}` with `r \equiv a*R^{-1} (mod q)`.
-#[inline]
-#[must_use]
-pub const fn montgomery_reduce(a: i32) -> i16 {
-    let t = (a as i16).wrapping_mul(QINV);
-    ((a - (t as i32) * (Q as i32)) >> 16) as i16
-}
 
 /// Barrett reduction: centered reduction modulo q.
 ///
@@ -29,9 +19,22 @@ pub const fn barrett_reduce(a: i16) -> i16 {
     a - t.wrapping_mul(Q)
 }
 
+/// Montgomery reduction: computes `a * R^{-1} mod q` where R = 2^{16}.
+///
+/// Input: `a in {-q*2^{15}, ..., q*2^{15} - 1}`. Output: `r in {-q+1, ...,
+/// q-1}` with `r \equiv a*R^{-1} (mod q)`.
+#[inline]
+#[must_use]
+#[cfg(test)]
+pub const fn montgomery_reduce(a: i32) -> i16 {
+    let t = (a as i16).wrapping_mul(QINV);
+    ((a - (t as i32) * (Q as i32)) >> 16) as i16
+}
+
 /// Field multiplication followed by Montgomery reduction: `a*b*R^{-1} mod q`.
 #[inline]
 #[must_use]
+#[cfg(test)]
 pub const fn fqmul(a: i16, b: i16) -> i16 {
     montgomery_reduce((a as i32) * (b as i32))
 }

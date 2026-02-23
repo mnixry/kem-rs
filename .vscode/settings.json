@@ -3,6 +3,7 @@
     "rust-analyzer.check.command": "clippy",
     "cSpell.words": [
         "Ciphertext",
+        "deinterleave",
         "derand",
         "keygen",
         "keypair"

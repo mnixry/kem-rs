@@ -98,9 +98,7 @@ impl<'b> ops::Add<&'b Polynomial> for &Polynomial {
     type Output = Polynomial;
     #[inline]
     fn add(self, rhs: &'b Polynomial) -> Polynomial {
-        let mut r = Polynomial::zero();
-        crate::simd::poly_add(&mut r.0, &self.0, &rhs.0);
-        r
+        Polynomial(crate::simd::poly_add(&self.0, &rhs.0))
     }
 }
 
@@ -108,9 +106,7 @@ impl<'b> ops::Sub<&'b Polynomial> for &Polynomial {
     type Output = Polynomial;
     #[inline]
     fn sub(self, rhs: &'b Polynomial) -> Polynomial {
-        let mut r = Polynomial::zero();
-        crate::simd::poly_sub(&mut r.0, &self.0, &rhs.0);
-        r
+        Polynomial(crate::simd::poly_sub(&self.0, &rhs.0))
     }
 }
 
@@ -118,15 +114,6 @@ impl ops::AddAssign<&Self> for Polynomial {
     #[inline]
     fn add_assign(&mut self, rhs: &Self) {
         crate::simd::poly_add_assign(&mut self.0, &rhs.0);
-    }
-}
-
-impl ops::SubAssign<&Self> for Polynomial {
-    #[inline]
-    fn sub_assign(&mut self, rhs: &Self) {
-        for i in 0..N {
-            self.0[i] -= rhs.0[i];
-        }
     }
 }
 

@@ -1,7 +1,7 @@
 use core::ops;
 
 use super::Polynomial;
-use crate::{N, encode, ntt, reduce::fqmul};
+use crate::{N, encode, ntt};
 
 /// Polynomial in NTT (bit-reversed) domain.
 #[derive(Clone, Copy)]
@@ -32,25 +32,8 @@ impl NttPolynomial {
     /// Pointwise basemul: 128 degree-1 multiplications in NTT domain.
     #[must_use]
     pub fn basemul(&self, other: &Self) -> Self {
-        let mut r = Self::zero();
-        for i in 0..N / 4 {
-            let zi = 64 + i;
-            let base = 4 * i;
-            let zeta = ntt::ZETAS[zi];
-
-            r.0[base] = fqmul(self.0[base + 1], other.0[base + 1]);
-            r.0[base] = fqmul(r.0[base], zeta);
-            r.0[base] += fqmul(self.0[base], other.0[base]);
-            r.0[base + 1] = fqmul(self.0[base], other.0[base + 1]);
-            r.0[base + 1] += fqmul(self.0[base + 1], other.0[base]);
-
-            r.0[base + 2] = fqmul(self.0[base + 3], other.0[base + 3]);
-            r.0[base + 2] = fqmul(r.0[base + 2], -zeta);
-            r.0[base + 2] += fqmul(self.0[base + 2], other.0[base + 2]);
-            r.0[base + 3] = fqmul(self.0[base + 2], other.0[base + 3]);
-            r.0[base + 3] += fqmul(self.0[base + 3], other.0[base + 2]);
-        }
-        r
+        let result = crate::simd::poly_basemul(&self.0, &other.0);
+        Self(result)
     }
 
     /// Serialize to bytes (12-bit packing, 384 bytes).
@@ -96,9 +79,7 @@ impl<'b> ops::Add<&'b NttPolynomial> for &NttPolynomial {
     type Output = NttPolynomial;
     #[inline]
     fn add(self, rhs: &'b NttPolynomial) -> NttPolynomial {
-        let mut r = NttPolynomial::zero();
-        crate::simd::poly_add(&mut r.0, &self.0, &rhs.0);
-        r
+        NttPolynomial(crate::simd::poly_add(&self.0, &rhs.0))
     }
 }
 
@@ -112,7 +93,10 @@ impl ops::AddAssign<&Self> for NttPolynomial {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{POLYBYTES, Q, reduce::barrett_reduce};
+    use crate::{
+        POLYBYTES, Q,
+        reduce::{barrett_reduce, fqmul},
+    };
 
     #[test]
     fn ntt_roundtrip() {
