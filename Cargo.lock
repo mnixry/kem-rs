@@ -632,8 +632,11 @@ dependencies = [
 name = "kem-hash"
 version = "0.1.0"
 dependencies = [
+ "hex",
  "keccak",
  "kem-math",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

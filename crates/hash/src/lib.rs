@@ -19,7 +19,7 @@ pub const SHA3_512_RATE: usize = 72;
 const SHAKE_PAD: u8 = 0x1F;
 const SHA3_PAD: u8 = 0x06;
 
-pub use keccak1x::{hash_g, hash_h, rkprf};
+pub use keccak1x::{hash_g, hash_h, rkprf, shake128, shake256};
 pub use keccak4x::{Shake128x4Reader, prf_x4, xof_absorb_x4};
 use kem_math::{CbdWidth, SYMBYTES};
 
