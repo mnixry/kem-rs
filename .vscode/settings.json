@@ -6,6 +6,8 @@
         "deinterleave",
         "derand",
         "keygen",
-        "keypair"
+        "keypair",
+        "POLYBYTES",
+        "SYMBYTES"
     ]
 }

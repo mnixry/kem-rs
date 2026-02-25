@@ -162,26 +162,25 @@ pub fn poly_basemul(a: &[i16; N], b: &[i16; N]) -> [i16; N] {
 #[inline]
 fn poly_basemul_lanes<const L: usize>(a: &[i16; N], b: &[i16; N]) -> [i16; N] {
     let mut r = [0i16; N];
-    for blk in (0..N / 4).step_by(L) {
-        let base = 4 * blk;
-
+    for ((([a0, a1, a2, a3], [b0, b1, b2, b3]), z), out) in
+        (a.as_chunks::<L>().0.as_chunks::<4>().0.iter())
+            .zip(b.as_chunks::<L>().0.as_chunks::<4>().0.iter())
+            .zip(crate::ntt::ZETAS[64..].as_chunks::<L>().0.iter())
+            .zip(r.as_chunks_mut::<L>().0.as_chunks_mut::<4>().0.iter_mut())
+    {
         // 4-way de-interleave (AOS→SOA): two passes of 2-way deinterleave
         // turn [a0,a1,a2,a3, b0,b1,b2,b3, ...] into four L-wide role vectors.
-        let (t0, t1) =
-            Simd::<i16, L>::from_slice(&a[base..]).deinterleave(Simd::from_slice(&a[base + L..]));
-        let (t2, t3) = Simd::<i16, L>::from_slice(&a[base + 2 * L..])
-            .deinterleave(Simd::from_slice(&a[base + 3 * L..]));
+        let (t0, t1) = Simd::from_array(*a0).deinterleave(Simd::from_array(*a1));
+        let (t2, t3) = Simd::from_array(*a2).deinterleave(Simd::from_array(*a3));
         let (a0, a2) = t0.deinterleave(t2);
         let (a1, a3) = t1.deinterleave(t3);
 
-        let (t0, t1) =
-            Simd::<i16, L>::from_slice(&b[base..]).deinterleave(Simd::from_slice(&b[base + L..]));
-        let (t2, t3) = Simd::<i16, L>::from_slice(&b[base + 2 * L..])
-            .deinterleave(Simd::from_slice(&b[base + 3 * L..]));
+        let (t0, t1) = Simd::from_array(*b0).deinterleave(Simd::from_array(*b1));
+        let (t2, t3) = Simd::from_array(*b2).deinterleave(Simd::from_array(*b3));
         let (b0, b2) = t0.deinterleave(t2);
         let (b1, b3) = t1.deinterleave(t3);
 
-        let z = Simd::<i16, L>::from_slice(&crate::ntt::ZETAS[64 + blk..]);
+        let z = Simd::from_slice(z);
 
         let r0 = fqmul_vec(fqmul_vec(a1, b1), z) + fqmul_vec(a0, b0);
         let r1 = fqmul_vec(a0, b1) + fqmul_vec(a1, b0);
@@ -195,9 +194,7 @@ fn poly_basemul_lanes<const L: usize>(a: &[i16; N], b: &[i16; N]) -> [i16; N] {
         let (out0, out1) = lo02.interleave(lo13);
         let (out2, out3) = hi02.interleave(hi13);
 
-        for (i, out) in [out0, out1, out2, out3].iter().enumerate() {
-            out.copy_to_slice(&mut r[base + i * L..]);
-        }
+        *out = [out0, out1, out2, out3].map(Into::into);
     }
     r
 }

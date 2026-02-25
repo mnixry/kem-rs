@@ -53,5 +53,5 @@ pub const Q: i16 = 3329;
 /// Size in bytes of hashes, seeds, and shared secrets.
 pub const SYMBYTES: usize = 32;
 
-/// Size in bytes of a serialised polynomial (12 bits * 256 / 8).
+/// Size in bytes of a serialized polynomial (12 bits * 256 / 8).
 pub const POLYBYTES: usize = 384;
