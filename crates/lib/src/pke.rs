@@ -4,19 +4,25 @@
 //! [`CbdWidth`]; compression via sealed [`CompressWidth`].
 
 use kem_math::{ByteArray, Polynomial, SYMBYTES};
+use zerocopy::transmute_ref;
 
-use crate::params::ParameterSet;
+use crate::{
+    params::ParameterSet,
+    types::{Ciphertext, PublicKey, Sym2},
+};
 
 /// Deterministic IND-CPA key generation.
+///
+/// Returns `(pk, indcpa_sk)` where `indcpa_sk` is the serialised NTT secret
+/// vector.
 pub(crate) fn indcpa_keypair_derand<P: ParameterSet>(
     coins: &[u8; SYMBYTES],
-) -> (P::PkArray, P::PkArray) {
+) -> (PublicKey<P>, P::PolyVecArray) {
     let mut g_input = [0u8; SYMBYTES + 1];
     g_input[..SYMBYTES].copy_from_slice(coins);
     g_input[SYMBYTES] = P::K as u8;
     let buf = kem_hash::hash_g(g_input);
-    let public_seed: &[u8; SYMBYTES] = buf[..SYMBYTES].first_chunk().expect("buf is 64 bytes");
-    let noise_seed: &[u8; SYMBYTES] = buf[SYMBYTES..].first_chunk().expect("buf is 64 bytes");
+    let Sym2(public_seed, noise_seed) = transmute_ref!(&buf);
 
     let a_hat = P::gen_matrix(public_seed, false);
 
@@ -29,26 +35,27 @@ pub(crate) fn indcpa_keypair_derand<P: ParameterSet>(
     t_hat = P::add_ntt_vecs(&t_hat, &e_hat);
     P::reduce_ntt_vec(&mut t_hat);
 
-    let mut pk = P::PkArray::zeroed();
-    P::ntt_vec_to_bytes(&t_hat, &mut pk.as_mut()[..P::POLYVEC_BYTES]);
-    pk.as_mut()[P::POLYVEC_BYTES..P::INDCPA_PK_BYTES].copy_from_slice(public_seed);
+    let mut polyvec = P::PolyVecArray::zeroed();
+    P::ntt_vec_to_bytes(&t_hat, polyvec.as_mut());
 
-    let mut sk = P::PkArray::zeroed();
-    P::ntt_vec_to_bytes(&s_hat, &mut sk.as_mut()[..P::INDCPA_SK_BYTES]);
+    let pk = PublicKey {
+        polyvec,
+        rho: *public_seed,
+    };
+
+    let mut sk = P::PolyVecArray::zeroed();
+    P::ntt_vec_to_bytes(&s_hat, sk.as_mut());
 
     (pk, sk)
 }
 
 /// IND-CPA encryption.
 pub(crate) fn indcpa_enc<P: ParameterSet>(
-    pk_bytes: &[u8], m: &[u8; SYMBYTES], coins: &[u8; SYMBYTES],
-) -> P::CtArray {
-    let t_hat = P::ntt_vec_from_bytes(&pk_bytes[..P::POLYVEC_BYTES]);
-    let rho: &[u8; SYMBYTES] = pk_bytes[P::POLYVEC_BYTES..P::INDCPA_PK_BYTES]
-        .first_chunk()
-        .expect("pk has rho");
+    pk: &PublicKey<P>, m: &[u8; SYMBYTES], coins: &[u8; SYMBYTES],
+) -> Ciphertext<P> {
+    let t_hat = P::ntt_vec_from_bytes(pk.polyvec.as_ref());
 
-    let a_hat_t = P::gen_matrix(rho, true);
+    let a_hat_t = P::gen_matrix(&pk.rho, true);
 
     let mut nonce = 0u8;
     let r_hat = P::sample_noise_eta1(coins, &mut nonce);
@@ -67,25 +74,24 @@ pub(crate) fn indcpa_enc<P: ParameterSet>(
     let mut v = &(&v_std + &e2) + &msg_poly;
     v.reduce();
 
-    let mut ct = P::CtArray::zeroed();
-    P::vec_compress(&u, &mut ct.as_mut()[..P::POLYVEC_COMPRESSED_BYTES]);
-    v.compress::<P::Dv>(
-        &mut ct.as_mut()
-            [P::POLYVEC_COMPRESSED_BYTES..P::POLYVEC_COMPRESSED_BYTES + P::POLY_COMPRESSED_BYTES],
-    );
+    let mut ct = Ciphertext {
+        u_compressed: P::PolyVecCompArray::zeroed(),
+        v_compressed: P::PolyCompArray::zeroed(),
+    };
+    P::vec_compress(&u, AsMut::<[u8]>::as_mut(&mut ct.u_compressed));
+    v.compress::<P::Dv>(AsMut::<[u8]>::as_mut(&mut ct.v_compressed));
 
     ct
 }
 
 /// IND-CPA decryption.
-pub(crate) fn indcpa_dec<P: ParameterSet>(ct_bytes: &[u8], sk_bytes: &[u8]) -> [u8; SYMBYTES] {
-    let u = P::vec_decompress(&ct_bytes[..P::POLYVEC_COMPRESSED_BYTES]);
-    let v = Polynomial::decompress::<P::Dv>(
-        &ct_bytes
-            [P::POLYVEC_COMPRESSED_BYTES..P::POLYVEC_COMPRESSED_BYTES + P::POLY_COMPRESSED_BYTES],
-    );
+pub(crate) fn indcpa_dec<P: ParameterSet>(
+    ct: &Ciphertext<P>, indcpa_sk: &P::PolyVecArray,
+) -> [u8; SYMBYTES] {
+    let u = P::vec_decompress(ct.u_compressed.as_ref());
+    let v = Polynomial::decompress::<P::Dv>(ct.v_compressed.as_ref());
 
-    let s_hat = P::ntt_vec_from_bytes(&sk_bytes[..P::INDCPA_SK_BYTES]);
+    let s_hat = P::ntt_vec_from_bytes(indcpa_sk.as_ref());
     let u_hat = P::ntt_vec(u);
     let su = P::inner_product(&s_hat, &u_hat).ntt_inverse();
     let mut mp = &v - &su;

@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use kem_hash::hash_h;
-use kem_math::ByteArray;
 use kem_rs::{
     Ciphertext, MlKem512, MlKem768, MlKem1024, ParameterSet, PublicKey, SecretKey, decapsulate,
     encapsulate_derand, keypair_derand,
@@ -181,13 +180,6 @@ macro_rules! require_hex {
     };
 }
 
-fn to_byte_array<A: ByteArray>(bytes: &[u8], expected_len: usize) -> A {
-    assert_eq!(bytes.len(), expected_len);
-    let mut out = A::zeroed();
-    out.as_mut().copy_from_slice(bytes);
-    out
-}
-
 #[allow(clippy::similar_names)]
 fn run_keygen_case<P: ParameterSet>(
     d: &[u8; SYMBYTES], z: &[u8; SYMBYTES], expected_ek: &[u8], expected_dk: &[u8],
@@ -204,8 +196,7 @@ fn run_keygen_case<P: ParameterSet>(
 fn run_encapsulation_case<P: ParameterSet>(
     ek: &[u8], m: &[u8; SYMBYTES], expected_c: &[u8], expected_k: &[u8; SYMBYTES],
 ) {
-    let ek_arr = to_byte_array::<P::PkArray>(ek, P::PK_BYTES);
-    let ek = PublicKey::<P>::from(&ek_arr);
+    let ek: PublicKey<P> = ek.try_into().unwrap();
 
     let (c, k) = encapsulate_derand::<P>(&ek, m);
     assert_eq!(c.as_ref(), expected_c);
@@ -213,10 +204,8 @@ fn run_encapsulation_case<P: ParameterSet>(
 }
 
 fn run_decapsulation_case<P: ParameterSet>(dk: &[u8], c: &[u8], expected_k: &[u8; SYMBYTES]) {
-    let dk_arr = to_byte_array::<P::SkArray>(dk, P::SK_BYTES);
-    let c_arr = to_byte_array::<P::CtArray>(c, P::CT_BYTES);
-    let dk = SecretKey::<P>::from(&dk_arr);
-    let c = Ciphertext::<P>::from(&c_arr);
+    let dk: SecretKey<P> = dk.try_into().unwrap();
+    let c: Ciphertext<P> = c.try_into().unwrap();
     let k = decapsulate::<P>(&c, &dk);
     assert_eq!(k.as_ref(), expected_k);
 }

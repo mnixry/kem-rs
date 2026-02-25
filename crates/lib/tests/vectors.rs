@@ -1,7 +1,6 @@
 //! Deterministic and randomized ML-KEM behavior checks.
 #![feature(macro_metavar_expr_concat)]
 
-use kem_math::ByteArray;
 use kem_rs::{
     Ciphertext, MlKem512, MlKem768, MlKem1024, ParameterSet, decapsulate, encapsulate,
     encapsulate_derand, keypair, keypair_derand,
@@ -52,10 +51,9 @@ fn check_implicit_rejection<P: ParameterSet>() {
     let (pk, sk) = keypair_derand::<P>(&kp_coins);
     let (ct, ss_good) = encapsulate_derand::<P>(&pk, &enc_coins);
 
-    let mut bad_ct_bytes = P::CtArray::zeroed();
-    bad_ct_bytes.as_mut().copy_from_slice(ct.as_ref());
-    bad_ct_bytes.as_mut()[0] ^= 0xFF;
-    let bad_ct = Ciphertext::<P>::from(&bad_ct_bytes);
+    let mut bad_ct_raw = ct.as_ref().to_vec();
+    bad_ct_raw[0] ^= 0xFF;
+    let bad_ct: Ciphertext<P> = (bad_ct_raw.as_ref() as &[u8]).try_into().unwrap();
 
     let ss_bad = decapsulate::<P>(&bad_ct, &sk);
     assert_ne!(ss_good.as_ref(), ss_bad.as_ref());

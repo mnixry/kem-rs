@@ -9,8 +9,17 @@ use kem_math::{
     NttVector, Polynomial, Vector,
 };
 pub use kem_math::{N, POLYBYTES, Q, SYMBYTES};
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, Unaligned};
 
 pub const SSBYTES: usize = 32;
+
+/// Byte-array type with zerocopy layout guarantees.
+///
+/// Implemented automatically for all `[u8; N]` since they satisfy every bound.
+pub trait FieldArray:
+    ByteArray + FromBytes + IntoBytes + KnownLayout + Immutable + Unaligned {
+}
+impl<const N: usize> FieldArray for [u8; N] {}
 
 mod sealed {
     pub trait Sealed {}
@@ -35,9 +44,9 @@ pub trait ParameterSet: sealed::Sealed + 'static {
     const SK_BYTES: usize;
     const CT_BYTES: usize;
 
-    type PkArray: ByteArray;
-    type SkArray: ByteArray;
-    type CtArray: ByteArray;
+    type PolyVecArray: FieldArray;
+    type PolyVecCompArray: FieldArray;
+    type PolyCompArray: FieldArray;
 
     fn gen_matrix(seed: &[u8; SYMBYTES], transposed: bool) -> Self::Matrix;
     fn sample_noise_eta1(seed: &[u8; SYMBYTES], nonce: &mut u8) -> Self::NttVec;
@@ -67,7 +76,9 @@ macro_rules! impl_parameter_set {
         $name:ident, K = $K:literal,
         Eta1 = $Eta1:ty, Eta2 = $Eta2:ty,
         Du = $Du:ty, Dv = $Dv:ty,
-        PkArray = $PkArray:ty, SkArray = $SkArray:ty, CtArray = $CtArray:ty,
+        PolyVecArray = $PolyVecArray:ty,
+        PolyVecCompArray = $PolyVecCompArray:ty,
+        PolyCompArray = $PolyCompArray:ty,
         POLYVEC_BYTES = $pvb:literal,
         POLY_COMPRESSED_BYTES = $pcb:literal,
         POLYVEC_COMPRESSED_BYTES = $pvcb:literal,
@@ -97,9 +108,9 @@ macro_rules! impl_parameter_set {
             const SK_BYTES: usize = $skb;
             const CT_BYTES: usize = $ctb;
 
-            type PkArray = $PkArray;
-            type SkArray = $SkArray;
-            type CtArray = $CtArray;
+            type PolyVecArray = $PolyVecArray;
+            type PolyVecCompArray = $PolyVecCompArray;
+            type PolyCompArray = $PolyCompArray;
 
             type NttVec = NttVector<$K>;
             type Vec = Vector<$K>;
@@ -281,9 +292,9 @@ impl_parameter_set!(
     Eta2 = Eta2,
     Du = D10,
     Dv = D4,
-    PkArray = [u8; 800],
-    SkArray = [u8; 1632],
-    CtArray = [u8; 768],
+    PolyVecArray = [u8; 768],
+    PolyVecCompArray = [u8; 640],
+    PolyCompArray = [u8; 128],
     POLYVEC_BYTES = 768,
     POLY_COMPRESSED_BYTES = 128,
     POLYVEC_COMPRESSED_BYTES = 640,
@@ -302,9 +313,9 @@ impl_parameter_set!(
     Eta2 = Eta2,
     Du = D10,
     Dv = D4,
-    PkArray = [u8; 1184],
-    SkArray = [u8; 2400],
-    CtArray = [u8; 1088],
+    PolyVecArray = [u8; 1152],
+    PolyVecCompArray = [u8; 960],
+    PolyCompArray = [u8; 128],
     POLYVEC_BYTES = 1152,
     POLY_COMPRESSED_BYTES = 128,
     POLYVEC_COMPRESSED_BYTES = 960,
@@ -323,9 +334,9 @@ impl_parameter_set!(
     Eta2 = Eta2,
     Du = D11,
     Dv = D5,
-    PkArray = [u8; 1568],
-    SkArray = [u8; 3168],
-    CtArray = [u8; 1568],
+    PolyVecArray = [u8; 1536],
+    PolyVecCompArray = [u8; 1408],
+    PolyCompArray = [u8; 160],
     POLYVEC_BYTES = 1536,
     POLY_COMPRESSED_BYTES = 160,
     POLYVEC_COMPRESSED_BYTES = 1408,
@@ -349,6 +360,17 @@ const _: () = {
             assert!(<$t>::PK_BYTES == <$t>::INDCPA_PK_BYTES);
             assert!(<$t>::SK_BYTES == <$t>::INDCPA_SK_BYTES + <$t>::PK_BYTES + 2 * SYMBYTES);
             assert!(<$t>::CT_BYTES == <$t>::INDCPA_BYTES);
+
+            assert!(<$t as ParameterSet>::PolyVecArray::LEN == <$t>::POLYVEC_BYTES);
+            assert!(<$t as ParameterSet>::PolyVecCompArray::LEN == <$t>::POLYVEC_COMPRESSED_BYTES);
+            assert!(<$t as ParameterSet>::PolyCompArray::LEN == <$t>::POLY_COMPRESSED_BYTES);
+            assert!(<$t>::PK_BYTES == <$t as ParameterSet>::PolyVecArray::LEN + SYMBYTES);
+            assert!(<$t>::SK_BYTES == 2 * <$t as ParameterSet>::PolyVecArray::LEN + 3 * SYMBYTES);
+            assert!(
+                <$t>::CT_BYTES
+                    == <$t as ParameterSet>::PolyVecCompArray::LEN
+                        + <$t as ParameterSet>::PolyCompArray::LEN
+            );
         };
     }
     check_params!(MlKem512);
