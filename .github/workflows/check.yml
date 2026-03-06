@@ -6,20 +6,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@main
-      - uses: nixbuild/nix-quick-install-action@master
+      - uses: DeterminateSystems/determinate-nix-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
         with:
-          nix_conf: |
-            keep-env-derivations = true
-            keep-outputs = true
-      - uses: nix-community/cache-nix-action@main
-        with:
-          purge: true
-          purge-primary-key: always
-          purge-last-accessed: 0
-          primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', '**/flake.lock') }}
-          restore-prefixes-first-match: nix-${{ runner.os }}-
-          gc-max-store-size: 1G
+          diff-store: true
       - run: nix flake check --print-build-logs
+  bench:
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - uses: actions/checkout@main
+      - uses: DeterminateSystems/determinate-nix-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+        with:
+          diff-store: true
       - run: nix build '.#benchmark' --print-build-logs
       - uses: actions/upload-artifact@main
         with:
