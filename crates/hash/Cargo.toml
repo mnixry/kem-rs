@@ -9,13 +9,19 @@ workspace = true
 [dependencies]
 keccak = { version = "0.1.6", features = ["simd"] }
 
-[dependencies.kem-math]
-path = "../math"
+kem-math.workspace = true
 
 [dev-dependencies]
-hex        = "0.4.3"
-serde      = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.149"
+core_affinity.workspace = true
+criterion.workspace     = true
+hex.workspace           = true
+kem-math.workspace      = true
+serde.workspace         = true
+serde_json.workspace    = true
 
 [lib]
 bench = false
+
+[[bench]]
+harness = false
+name    = "keccak"

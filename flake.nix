@@ -66,6 +66,7 @@
                 llvmPackages.bolt
                 gnuplot
                 pprof
+                perf
                 taplo
               ]);
           };

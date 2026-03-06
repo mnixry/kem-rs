@@ -632,6 +632,8 @@ dependencies = [
 name = "kem-hash"
 version = "0.1.0"
 dependencies = [
+ "core_affinity",
+ "criterion",
  "hex",
  "keccak",
  "kem-math",
@@ -643,6 +645,8 @@ dependencies = [
 name = "kem-math"
 version = "0.1.0"
 dependencies = [
+ "core_affinity",
+ "criterion",
  "zeroize",
 ]
 
