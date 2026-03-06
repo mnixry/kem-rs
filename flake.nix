@@ -38,6 +38,20 @@
             }
           );
           craneLib = (inputs.crane.mkLib pkgs).overrideToolchain (_: rust);
+          craneCommonArgs =
+            (craneLib.crateNameFromCargoToml { cargoToml = ./crates/lib/Cargo.toml; })
+            // rec {
+              src = ./.;
+              strictDeps = true;
+              cargoVendorDir = craneLib.vendorMultipleCargoDeps {
+                inherit (craneLib.findCargoFiles src) cargoConfigs;
+                cargoLockList = [
+                  ./Cargo.lock
+                  "${rust}/lib/rustlib/src/rust/library/Cargo.lock"
+                ];
+              };
+            };
+          cargoArtifacts = craneLib.buildDepsOnly craneCommonArgs;
         in
         {
           _module.args = { inherit inputs pkgs rust; };
@@ -70,36 +84,30 @@
                 taplo
               ]);
           };
-          checks =
-            let
-              commonArgs = (craneLib.crateNameFromCargoToml { cargoToml = ./crates/lib/Cargo.toml; }) // rec {
-                src = ./.;
-                strictDeps = true;
-                cargoVendorDir = craneLib.vendorMultipleCargoDeps {
-                  inherit (craneLib.findCargoFiles src) cargoConfigs;
-                  cargoLockList = [
-                    ./Cargo.lock
-                    "${rust}/lib/rustlib/src/rust/library/Cargo.lock"
-                  ];
-                };
-              };
-              cargoArtifacts = craneLib.buildDepsOnly commonArgs;
-            in
-            {
-              clippy = craneLib.cargoClippy (
-                commonArgs
-                // {
-                  inherit cargoArtifacts;
-                  cargoClippyExtraArgs = "--all-targets --all-features";
-                }
-              );
-              test = craneLib.cargoNextest (
-                commonArgs
-                // {
-                  inherit cargoArtifacts;
-                }
-              );
-            };
+          checks = {
+            clippy = craneLib.cargoClippy (
+              craneCommonArgs
+              // {
+                inherit cargoArtifacts;
+                cargoClippyExtraArgs = "--all-targets --all-features";
+              }
+            );
+            test = craneLib.cargoNextest (craneCommonArgs // { inherit cargoArtifacts; });
+          };
+          packages.benchmark = craneLib.mkCargoDerivation (
+            craneCommonArgs
+            // {
+              inherit cargoArtifacts;
+              pnameSuffix = "-benchmark";
+              nativeBuildInputs = with pkgs; [ cargo-pgo ];
+              buildPhaseCargoCommand = ''
+                cargo bench
+                cargo pgo bench -- -- --profile-time 10
+                cargo pgo optimize bench
+              '';
+              installPhaseCommand = "cp -r target/criterion $out";
+            }
+          );
         };
     };
 }
