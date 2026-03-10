@@ -9,10 +9,9 @@ workspace = true
 [dependencies]
 ctutils   = "0.4.0"
 rand_core = "0.10.0"
-zerocopy  = { version = "0.8.40", features = ["derive"] }
+zerocopy  = { version = "0.8.42", features = ["derive"] }
 
-kem-hash = { path = "../hash" }
-
+kem-hash.workspace = true
 kem-math.workspace = true
 zeroize.workspace  = true
 
