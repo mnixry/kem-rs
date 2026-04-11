@@ -1,12 +1,15 @@
+mod common;
+
 use std::collections::HashMap;
 
+use common::{HexArray, HexBytes, parse_json};
 use kem_hash::hash_h;
 use kem_rs::{
     Ciphertext, MlKem512, MlKem768, MlKem1024, ParameterSet, PublicKey, SecretKey, decapsulate,
     encapsulate_derand, keypair_derand,
     params::{Q, SYMBYTES},
 };
-use serde::{Deserialize, de};
+use serde::Deserialize;
 
 const KEYGEN_PROMPT_JSON: &[u8] = include_bytes!("data/acvp/ML-KEM-keyGen-FIPS203/prompt.json");
 const KEYGEN_EXPECTED_JSON: &[u8] =
@@ -14,46 +17,6 @@ const KEYGEN_EXPECTED_JSON: &[u8] =
 const ENCAP_PROMPT_JSON: &[u8] = include_bytes!("data/acvp/ML-KEM-encapDecap-FIPS203/prompt.json");
 const ENCAP_EXPECTED_JSON: &[u8] =
     include_bytes!("data/acvp/ML-KEM-encapDecap-FIPS203/expectedResults.json");
-
-fn parse_json<T: for<'de> Deserialize<'de>>(bytes: &[u8]) -> T {
-    serde_json::from_slice(bytes).expect("json")
-}
-
-fn de_hex_vec<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
-where
-    D: serde::Deserializer<'de>, {
-    let encoded = <&str>::deserialize(deserializer)?;
-    hex::decode(encoded).map_err(de::Error::custom)
-}
-
-fn de_hex_32<'de, D>(deserializer: D) -> Result<[u8; SYMBYTES], D::Error>
-where
-    D: serde::Deserializer<'de>, {
-    let bytes = de_hex_vec(deserializer)?;
-    bytes
-        .try_into()
-        .map_err(|_| de::Error::custom("expected 32 bytes"))
-}
-
-#[derive(Clone, Deserialize)]
-#[serde(transparent)]
-struct HexBytes(#[serde(deserialize_with = "de_hex_vec")] Vec<u8>);
-
-impl<'a> From<&'a HexBytes> for &'a [u8] {
-    fn from(HexBytes(bytes): &'a HexBytes) -> Self {
-        bytes
-    }
-}
-
-#[derive(Clone, Deserialize)]
-#[serde(transparent)]
-struct Hex32(#[serde(deserialize_with = "de_hex_32")] [u8; SYMBYTES]);
-
-impl<'a> From<&'a Hex32> for &'a [u8; SYMBYTES] {
-    fn from(Hex32(bytes): &'a Hex32) -> Self {
-        bytes
-    }
-}
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -107,8 +70,8 @@ struct KeygenPromptGroup {
 struct KeygenPromptTest {
     #[serde(rename = "tcId")]
     tc_id: u64,
-    d: Hex32,
-    z: Hex32,
+    d: HexArray<SYMBYTES>,
+    z: HexArray<SYMBYTES>,
 }
 
 #[derive(Deserialize)]
@@ -146,7 +109,7 @@ struct EncapPromptTest {
     #[serde(default)]
     c: Option<HexBytes>,
     #[serde(default)]
-    m: Option<Hex32>,
+    m: Option<HexArray<SYMBYTES>>,
 }
 
 #[derive(Deserialize)]
@@ -163,7 +126,7 @@ struct EncapExpectedTest {
     #[serde(default)]
     c: Option<HexBytes>,
     #[serde(default)]
-    k: Option<Hex32>,
+    k: Option<HexArray<SYMBYTES>>,
     #[serde(default, rename = "testPassed")]
     test_passed: Option<bool>,
 }
@@ -175,7 +138,7 @@ fn by_tc_id<T>(tests: &[T], id_fn: impl Fn(&T) -> u64) -> HashMap<u64, &T> {
 macro_rules! require_hex {
     ($struct:ident, $($field:ident), *) => {
         $(
-            let $field = $struct.$field.as_ref().expect(stringify!($field)).into();
+            let $field = $struct.$field.as_ref().expect(stringify!($field));
         )*
     };
 }
@@ -268,26 +231,26 @@ fn acvp_keygen_vectors() {
             prompt_group.parameter_set.run(
                 || {
                     run_keygen_case::<MlKem512>(
-                        (&prompt_test.d).into(),
-                        (&prompt_test.z).into(),
-                        (&expected_test.ek).into(),
-                        (&expected_test.dk).into(),
+                        &prompt_test.d,
+                        &prompt_test.z,
+                        &expected_test.ek,
+                        &expected_test.dk,
                     );
                 },
                 || {
                     run_keygen_case::<MlKem768>(
-                        (&prompt_test.d).into(),
-                        (&prompt_test.z).into(),
-                        (&expected_test.ek).into(),
-                        (&expected_test.dk).into(),
+                        &prompt_test.d,
+                        &prompt_test.z,
+                        &expected_test.ek,
+                        &expected_test.dk,
                     );
                 },
                 || {
                     run_keygen_case::<MlKem1024>(
-                        (&prompt_test.d).into(),
-                        (&prompt_test.z).into(),
-                        (&expected_test.ek).into(),
-                        (&expected_test.dk).into(),
+                        &prompt_test.d,
+                        &prompt_test.z,
+                        &expected_test.ek,
+                        &expected_test.dk,
                     );
                 },
             );
