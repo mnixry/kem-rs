@@ -11,6 +11,24 @@ jobs:
         with:
           diff-store: true
       - run: nix flake check --print-build-logs
+  coverage:
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - uses: actions/checkout@main
+      - uses: DeterminateSystems/determinate-nix-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+        with:
+          diff-store: true
+      - run: nix build '.#coverage' --print-build-logs
+      - name: Extract coverage results
+        run: |
+          pipx run pycobertura show \
+            --format markdown result/coverage.xml >> $GITHUB_STEP_SUMMARY
+      - uses: actions/upload-artifact@main
+        with:
+          path: result
+          name: coverage-results
   bench:
     runs-on: ubuntu-latest
     needs: check

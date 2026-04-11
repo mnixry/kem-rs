@@ -94,20 +94,42 @@
             );
             test = craneLib.cargoNextest (craneCommonArgs // { inherit cargoArtifacts; });
           };
-          packages.benchmark = craneLib.mkCargoDerivation (
-            craneCommonArgs
-            // {
-              inherit cargoArtifacts;
-              pnameSuffix = "-benchmark";
-              nativeBuildInputs = with pkgs; [ cargo-pgo ];
-              buildPhaseCargoCommand = ''
-                cargo bench
-                cargo pgo bench -- -- --profile-time 10
-                cargo pgo optimize bench
-              '';
-              installPhaseCommand = "cp -r target/criterion $out";
-            }
-          );
+          packages = {
+            benchmark = craneLib.mkCargoDerivation (
+              craneCommonArgs
+              // {
+                inherit cargoArtifacts;
+                pnameSuffix = "-benchmark";
+                nativeBuildInputs = with pkgs; [ cargo-pgo ];
+                buildPhaseCargoCommand = ''
+                  cargo bench
+                  cargo pgo bench -- -- --profile-time 10
+                  cargo pgo optimize bench
+                '';
+                installPhaseCommand = "cp -r target/criterion $out";
+              }
+            );
+            coverage = craneLib.mkCargoDerivation (
+              craneCommonArgs
+              // {
+                inherit cargoArtifacts;
+                pnameSuffix = "-coverage";
+                nativeBuildInputs = with pkgs; [
+                  cargo-nextest
+                  cargo-llvm-cov
+                ];
+                buildPhaseCargoCommand = ''
+                  cargo llvm-cov nextest --all-features
+                '';
+                installPhaseCommand = ''
+                  cargo llvm-cov report --html --output-dir $out/html
+                  cargo llvm-cov report --cobertura --output-path $out/coverage.xml
+                  cargo llvm-cov report --lcov --output-path $out/coverage.lcov
+                  cargo llvm-cov report --json --output-path $out/coverage.json
+                '';
+              }
+            );
+          };
         };
     };
 }
