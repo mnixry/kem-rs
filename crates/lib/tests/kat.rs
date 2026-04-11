@@ -2,7 +2,7 @@
 
 use std::fmt::Write;
 
-use aes::cipher::{BlockEncrypt, KeyInit};
+use aes::cipher::{BlockCipherEncrypt, KeyInit};
 use kem_rs::{
     MlKem512, MlKem768, MlKem1024, ParameterSet, decapsulate, encapsulate_derand, keypair_derand,
 };
@@ -42,8 +42,9 @@ impl NistDrbg {
                 }
             }
 
-            let cipher = aes::Aes256::new(key.as_slice().into());
-            let mut block = aes::Block::clone_from_slice(v.as_slice());
+            let cipher = aes::Aes256::new(&aes::cipher::Array::from(*key));
+            let mut block =
+                aes::Block::try_from(v.as_slice()).expect("failed to convert slice to block");
             cipher.encrypt_block(&mut block);
             temp[16 * i..16 * (i + 1)].copy_from_slice(&block);
         }
@@ -72,8 +73,9 @@ impl NistDrbg {
                 }
             }
 
-            let cipher = aes::Aes256::new(self.key.as_slice().into());
-            let mut block = aes::Block::clone_from_slice(self.v.as_slice());
+            let cipher = aes::Aes256::new(&aes::cipher::Array::from(self.key));
+            let mut block =
+                aes::Block::try_from(self.v.as_slice()).expect("failed to convert slice to block");
             cipher.encrypt_block(&mut block);
 
             if remaining > 15 {

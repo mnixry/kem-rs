@@ -7,20 +7,20 @@ version = "0.1.0"
 workspace = true
 
 [dependencies]
-ctutils   = "0.4.0"
+ctutils   = "0.4.2"
 rand_core = "0.10.0"
-zerocopy  = { version = "0.8.42", features = ["derive"] }
+zerocopy  = { version = "0.8.48", features = ["derive"] }
 
 kem-hash.workspace = true
 kem-math.workspace = true
 zeroize.workspace  = true
 
 [dev-dependencies]
-aes       = "0.8.4"
+aes       = "0.9.0"
 getrandom = { version = "0.4.2", features = ["sys_rng"] }
 ml-kem    = { version = "0.2.3", features = ["deterministic"] }
 rand_core = "0.10.0"
-sha2      = "0.10.9"
+sha2      = "0.11.0"
 
 core_affinity.workspace = true
 criterion.workspace     = true
