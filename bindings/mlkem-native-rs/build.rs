@@ -46,6 +46,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .define("MLK_CONFIG_USE_NATIVE_BACKEND_FIPS202", None)
         .define("MLK_CONFIG_NO_RANDOMIZED_API", None)
         .opt_level(3)
+        .flag_if_supported("-fuse-ld=lld")
         .warnings(false);
 
     match target_arch.as_str() {

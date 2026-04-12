@@ -38,7 +38,7 @@
               ];
             }
           );
-          craneLib = (inputs.crane.mkLib pkgs).overrideToolchain (_: rust);
+          craneLib = (inputs.crane.mkLib pkgs.pkgsLLVM).overrideToolchain (_: rust);
           craneCommonArgs =
             (craneLib.crateNameFromCargoToml { cargoToml = ./crates/lib/Cargo.toml; })
             // rec {
@@ -51,6 +51,9 @@
                   "${rust}/lib/rustlib/src/rust/library/Cargo.lock"
                 ];
               };
+              nativeBuildInputs = with pkgs; [
+                llvmPackages.lld
+              ];
             };
           cargoArtifacts = craneLib.buildDepsOnly craneCommonArgs;
         in
@@ -73,16 +76,17 @@
               programs.yamlfmt.enable = true;
             };
           devShells.default = pkgs.mkShell {
+            inherit (pkgs.pkgsLLVM) stdenv;
             buildInputs =
               lib.singleton rust
               ++ (with pkgs; [
+                llvmPackages.lld
+                llvmPackages.bolt
                 cargo-flamegraph
                 cargo-edit
                 cargo-nextest
                 cargo-llvm-cov
                 cargo-criterion
-                cargo-pgo
-                llvmPackages.bolt
                 gnuplot
                 pprof
                 perf
@@ -105,7 +109,12 @@
               // {
                 inherit cargoArtifacts;
                 pnameSuffix = "-benchmark";
-                nativeBuildInputs = with pkgs; [ cargo-pgo ];
+                nativeBuildInputs =
+                  craneCommonArgs.nativeBuildInputs
+                  ++ (with pkgs; [
+                    cargo-pgo
+                    gnuplot
+                  ]);
                 buildPhaseCargoCommand = ''
                   cargo bench
                   cargo pgo bench -- -- --profile-time 10
@@ -119,10 +128,12 @@
               // {
                 inherit cargoArtifacts;
                 pnameSuffix = "-coverage";
-                nativeBuildInputs = with pkgs; [
-                  cargo-nextest
-                  cargo-llvm-cov
-                ];
+                nativeBuildInputs =
+                  craneCommonArgs.nativeBuildInputs
+                  ++ (with pkgs; [
+                    cargo-nextest
+                    cargo-llvm-cov
+                  ]);
                 buildPhaseCargoCommand = ''
                   cargo llvm-cov nextest --all-features
                 '';

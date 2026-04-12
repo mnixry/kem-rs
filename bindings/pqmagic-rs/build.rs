@@ -37,6 +37,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .opt_level(3)
         .flag_if_supported("-march=native")
         .flag_if_supported("-mtune=native")
+        .flag_if_supported("-fuse-ld=lld")
         .warnings(false);
 
     for mode in [512, 768, 1024] {
