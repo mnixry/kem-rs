@@ -38,7 +38,7 @@
               ];
             }
           );
-          craneLib = (inputs.crane.mkLib pkgs.pkgsLLVM).overrideToolchain (_: rust);
+          craneLib = (inputs.crane.mkLib pkgs).overrideToolchain (_: rust);
           craneCommonArgs =
             (craneLib.crateNameFromCargoToml { cargoToml = ./crates/lib/Cargo.toml; })
             // rec {
@@ -51,9 +51,7 @@
                   "${rust}/lib/rustlib/src/rust/library/Cargo.lock"
                 ];
               };
-              nativeBuildInputs = with pkgs; [
-                llvmPackages.lld
-              ];
+              nativeBuildInputs = with pkgs; [ llvmPackages.lld ];
             };
           cargoArtifacts = craneLib.buildDepsOnly craneCommonArgs;
         in
@@ -76,7 +74,7 @@
               programs.yamlfmt.enable = true;
             };
           devShells.default = pkgs.mkShell {
-            inherit (pkgs.pkgsLLVM) stdenv;
+            inherit (pkgs) stdenv;
             buildInputs =
               lib.singleton rust
               ++ (with pkgs; [

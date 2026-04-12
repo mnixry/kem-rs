@@ -9,5 +9,6 @@
         "keypair",
         "POLYBYTES",
         "SYMBYTES"
-    ]
+    ],
+    "cmake.ignoreCMakeListsMissing": true
 }
