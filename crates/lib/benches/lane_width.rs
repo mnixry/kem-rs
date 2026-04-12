@@ -3,6 +3,8 @@
 //! Runs keypair / encapsulate / decapsulate for each lane width (8, 16, 32, 64)
 //! across all three parameter sets.
 
+mod common;
+
 use core::hint::black_box;
 
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
@@ -23,7 +25,7 @@ fn deterministic_coins() -> ([u8; 64], [u8; 32]) {
 }
 
 #[allow(clippy::significant_drop_tightening)]
-fn bench_lane_widths_for<P: kem_rs::ParameterSet>(c: &mut Criterion) {
+fn bench_lane_widths_for<P: kem_rs::ParameterSet>(c: &mut common::CPUTimeConfig) {
     let mut g = c.benchmark_group(format!(
         "lanes/{}",
         std::any::type_name::<P>()
@@ -78,7 +80,7 @@ fn bench_lane_widths_for<P: kem_rs::ParameterSet>(c: &mut Criterion) {
     kem_math::set_lane_width(LaneWidth::L16);
 }
 
-fn lane_width_benches(c: &mut Criterion) {
+fn lane_width_benches(c: &mut common::CPUTimeConfig) {
     let core_id = core_affinity::get_core_ids()
         .and_then(|ids| ids.first().copied())
         .expect("no core ids found");
@@ -92,7 +94,9 @@ fn lane_width_benches(c: &mut Criterion) {
 
 criterion_group! {
     name = benches;
-    config = Criterion::default().with_profiler(PProfProfiler::new(1000, Output::Flamegraph(None)));
+    config = Criterion::default()
+        .with_profiler(PProfProfiler::new(1000, Output::Flamegraph(None)))
+        .with_measurement(common::CPUTime);
     targets = lane_width_benches
 }
 criterion_main!(benches);

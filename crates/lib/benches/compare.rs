@@ -1,5 +1,6 @@
 //! Side-by-side performance comparison: kem-rs vs `RustCrypto` ml-kem vs
 //! mlkem-native (C/asm) vs `PQMagic` (C, SHAKE mode).
+mod common;
 
 use core::hint::black_box;
 
@@ -45,7 +46,7 @@ macro_rules! dispatch_binding_function {
     clippy::similar_names,
     clippy::too_many_lines
 )]
-fn bench_param_set<P: kem_rs::ParameterSet, RC: KemCore>(c: &mut Criterion, tag: u8) {
+fn bench_param_set<P: kem_rs::ParameterSet, RC: KemCore>(c: &mut common::CPUTimeConfig, tag: u8) {
     let mut g = c.benchmark_group(format!(
         "compare/{}",
         std::any::type_name::<P>()
@@ -162,7 +163,7 @@ fn bench_param_set<P: kem_rs::ParameterSet, RC: KemCore>(c: &mut Criterion, tag:
     g.finish();
 }
 
-fn compare_benches(c: &mut Criterion) {
+fn compare_benches(c: &mut common::CPUTimeConfig) {
     let core_id = core_affinity::get_core_ids()
         .and_then(|ids| ids.first().copied())
         .expect("no core ids found");
@@ -175,7 +176,9 @@ fn compare_benches(c: &mut Criterion) {
 
 criterion_group! {
     name = benches;
-    config = Criterion::default().with_profiler(PProfProfiler::new(1000, Output::Flamegraph(None)));
+    config = Criterion::default()
+        .with_profiler(PProfProfiler::new(1000, Output::Flamegraph(None)))
+        .with_measurement(common::CPUTime);
     targets = compare_benches
 }
 criterion_main!(benches);
