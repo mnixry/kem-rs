@@ -62,6 +62,7 @@
               projectRootFile = ".git/config";
               settings.global.excludes = [
                 "bindings/mlkem-native-rs/mlkem-native/**"
+                "bindings/pqmagic-rs/pqmagic/**"
               ];
               programs.nixfmt.enable = true;
               programs.taplo.enable = true;

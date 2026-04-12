@@ -1,3 +1,6 @@
 [submodule "bindings/mlkem-native-rs/mlkem-native"]
 	path = bindings/mlkem-native-rs/mlkem-native
 	url = https://github.com/pq-code-package/mlkem-native
+[submodule "bindings/pqmagic-rs/pqmagic"]
+	path = bindings/pqmagic-rs/pqmagic
+	url = https://github.com/pqcrypto-cn/pqmagic.git

@@ -1,5 +1,5 @@
 //! Side-by-side performance comparison: kem-rs vs `RustCrypto` ml-kem vs
-//! mlkem-native (C/asm).
+//! mlkem-native (C/asm) vs `PQMagic` (C, SHAKE mode).
 
 use core::hint::black_box;
 
@@ -20,19 +20,19 @@ fn enc_coins(tag: u8) -> [u8; 32] {
     core::array::from_fn(|i| (i as u8).wrapping_add(tag.wrapping_mul(53)))
 }
 
-macro_rules! dispatch_native_function {
-    ($ps:ty, $fn:ident, $($args:expr),*) => {
+macro_rules! dispatch_binding_function {
+    ($mod:ident, $ps:ty, $fn:ident, $($args:expr),*) => {
         match std::any::TypeId::of::<$ps>() {
             id if id == std::any::TypeId::of::<kem_rs::MlKem512>() => {
-                let result = mlkem_native_rs::mlkem512::$fn($(black_box($args)),*);
+                let result = $mod::mlkem512::$fn($(black_box($args)),*);
                 black_box(result).unwrap();
             }
             id if id == std::any::TypeId::of::<kem_rs::MlKem768>() => {
-                let result = mlkem_native_rs::mlkem768::$fn($(black_box($args)),*);
+                let result = $mod::mlkem768::$fn($(black_box($args)),*);
                 black_box(result).unwrap();
             }
             id if id == std::any::TypeId::of::<kem_rs::MlKem1024>() => {
-                let result = mlkem_native_rs::mlkem1024::$fn($(black_box($args)),*);
+                let result = $mod::mlkem1024::$fn($(black_box($args)),*);
                 black_box(result).unwrap();
             }
             _ => unreachable!(),
@@ -40,7 +40,11 @@ macro_rules! dispatch_native_function {
     };
 }
 
-#[allow(clippy::many_single_char_names, clippy::similar_names)]
+#[allow(
+    clippy::many_single_char_names,
+    clippy::similar_names,
+    clippy::too_many_lines
+)]
 fn bench_param_set<P: kem_rs::ParameterSet, RC: KemCore>(c: &mut Criterion, tag: u8) {
     let mut g = c.benchmark_group(format!(
         "compare/{}",
@@ -68,7 +72,10 @@ fn bench_param_set<P: kem_rs::ParameterSet, RC: KemCore>(c: &mut Criterion, tag:
         b.iter(|| black_box(RC::generate_deterministic(black_box(&d_b), black_box(&z_b))));
     });
     g.bench_function(BenchmarkId::new("keypair", "mlkem-native"), |b| {
-        b.iter(|| dispatch_native_function!(P, keypair_derand, &full));
+        b.iter(|| dispatch_binding_function!(mlkem_native_rs, P, keypair_derand, &full));
+    });
+    g.bench_function(BenchmarkId::new("keypair", "pqmagic"), |b| {
+        b.iter(|| dispatch_binding_function!(pqmagic_rs, P, keypair_derand, &full));
     });
 
     g.bench_function(BenchmarkId::new("encapsulate", "kem-rs"), |b| {
@@ -84,7 +91,24 @@ fn bench_param_set<P: kem_rs::ParameterSet, RC: KemCore>(c: &mut Criterion, tag:
     });
     g.bench_function(BenchmarkId::new("encapsulate", "mlkem-native"), |b| {
         b.iter(|| {
-            dispatch_native_function!(P, enc_derand, our_pk.as_ref().try_into().unwrap(), &m);
+            dispatch_binding_function!(
+                mlkem_native_rs,
+                P,
+                enc_derand,
+                our_pk.as_ref().try_into().unwrap(),
+                &m
+            );
+        });
+    });
+    g.bench_function(BenchmarkId::new("encapsulate", "pqmagic"), |b| {
+        b.iter(|| {
+            dispatch_binding_function!(
+                pqmagic_rs,
+                P,
+                enc_derand,
+                our_pk.as_ref().try_into().unwrap(),
+                &m
+            );
         });
     });
 
@@ -101,7 +125,19 @@ fn bench_param_set<P: kem_rs::ParameterSet, RC: KemCore>(c: &mut Criterion, tag:
     });
     g.bench_function(BenchmarkId::new("decapsulate", "mlkem-native"), |b| {
         b.iter(|| {
-            dispatch_native_function!(
+            dispatch_binding_function!(
+                mlkem_native_rs,
+                P,
+                dec,
+                our_ct.as_ref().try_into().unwrap(),
+                our_sk.as_ref().try_into().unwrap()
+            );
+        });
+    });
+    g.bench_function(BenchmarkId::new("decapsulate", "pqmagic"), |b| {
+        b.iter(|| {
+            dispatch_binding_function!(
+                pqmagic_rs,
                 P,
                 dec,
                 our_ct.as_ref().try_into().unwrap(),
