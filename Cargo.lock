@@ -722,6 +722,7 @@ dependencies = [
  "kem-hash",
  "kem-math",
  "ml-kem",
+ "mlkem-native-rs",
  "pprof",
  "rand_core 0.10.0",
  "serde",
@@ -804,6 +805,13 @@ dependencies = [
  "kem",
  "rand_core 0.6.4",
  "sha3",
+]
+
+[[package]]
+name = "mlkem-native-rs"
+version = "0.1.0"
+dependencies = [
+ "cc",
 ]
 
 [[package]]

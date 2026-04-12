@@ -1,5 +1,6 @@
 {
   inputs = {
+    self.submodules = true;
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     flake-parts = {
       url = "github:hercules-ci/flake-parts";
@@ -59,6 +60,9 @@
             { ... }:
             {
               projectRootFile = ".git/config";
+              settings.global.excludes = [
+                "bindings/mlkem-native-rs/mlkem-native/**"
+              ];
               programs.nixfmt.enable = true;
               programs.taplo.enable = true;
               programs.rustfmt = {
