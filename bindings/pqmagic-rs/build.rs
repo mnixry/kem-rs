@@ -15,6 +15,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let pqmagic_dir = manifest_dir.join("pqmagic");
     let ml_kem_dir = pqmagic_dir.join("kem").join("ml_kem").join("std");
 
+    if !ml_kem_dir.exists() {
+        return Err("ml_kem_dir does not exist".into());
+    }
+
     let ml_kem_sources = [
         "kem.c",
         "indcpa.c",

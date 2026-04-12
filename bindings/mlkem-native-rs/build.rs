@@ -13,6 +13,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mlkem_dir = manifest_dir.join("mlkem-native").join("mlkem");
     let target_arch = env::var("CARGO_CFG_TARGET_ARCH")?;
 
+    if !mlkem_dir.exists() {
+        return Err("mlkem_dir does not exist".into());
+    }
+
     let levels = vec![
         (512, "#define MLK_CONFIG_MULTILEVEL_WITH_SHARED 1"),
         (768, "#define MLK_CONFIG_MULTILEVEL_NO_SHARED"),
