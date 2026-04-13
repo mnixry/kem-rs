@@ -208,7 +208,7 @@ fn gen_matrix_inner<const K: usize>(seed: &[u8; SYMBYTES], transposed: bool) -> 
     let total = K * K;
     for elem in (0..total).step_by(4) {
         let live = (total - elem).min(4);
-        let batch = std::array::from_fn(|i| indices.get(elem + i).copied().unwrap_or((0, 0)));
+        let batch = core::array::from_fn(|i| indices.get(elem + i).copied().unwrap_or((0, 0)));
 
         let mut reader = kem_hash::xof_absorb_x4(seed, batch);
         let mut coefficients = [[0i16; N]; 4];

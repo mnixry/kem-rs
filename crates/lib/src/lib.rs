@@ -3,6 +3,7 @@
 //! Implements ML-KEM (FIPS 203) for all three parameter sets:
 //! ML-KEM-512, ML-KEM-768, and ML-KEM-1024.
 
+#![no_std]
 #![deny(unsafe_code)]
 
 pub mod kem;

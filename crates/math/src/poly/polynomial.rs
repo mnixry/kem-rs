@@ -5,6 +5,7 @@ use crate::{CbdWidthParams, N, SYMBYTES, compress::CompressWidth, encode, ntt, s
 
 /// Polynomial in standard (coefficient) form over `R_q = Z_q[X]/(X^{256}+1)`.
 #[derive(Clone, Copy)]
+#[repr(C, align(64))]
 pub struct Polynomial(pub(crate) [i16; N]);
 
 impl Polynomial {

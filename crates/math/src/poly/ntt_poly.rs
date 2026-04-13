@@ -5,6 +5,7 @@ use crate::{N, encode, ntt};
 
 /// Polynomial in NTT (bit-reversed) domain.
 #[derive(Clone, Copy)]
+#[repr(C, align(64))]
 pub struct NttPolynomial(pub(crate) [i16; N]);
 
 impl NttPolynomial {

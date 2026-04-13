@@ -20,7 +20,7 @@ impl<const K: usize> Vector<K> {
     #[must_use]
     pub const fn zero() -> Self {
         Self {
-            polys: [Polynomial::zero(); K],
+            polys: [const { Polynomial::zero() }; K],
         }
     }
 
@@ -67,7 +67,7 @@ impl<const K: usize> NttVector<K> {
     #[must_use]
     pub const fn zero() -> Self {
         Self {
-            polys: [NttPolynomial::zero(); K],
+            polys: [const { NttPolynomial::zero() }; K],
         }
     }
 
