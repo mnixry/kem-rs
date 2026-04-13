@@ -1,8 +1,6 @@
-use core::simd::{Simd, prelude::*};
+use core::simd::Simd;
 
-use super::kernels::{
-    barrett_reduce_vec, compress_d_vec, decompress_d_vec, fqmul_vec, montgomery_reduce_vec,
-};
+use super::kernels::{barrett_reduce_vec, compress_d_vec, decompress_d_vec, fqmul_vec};
 use crate::{N, Q};
 
 /// Barrett-reduce all `N` coefficients in-place.
@@ -86,10 +84,10 @@ pub fn poly_to_montgomery(c: &mut [i16; N]) {
 
 #[inline]
 fn poly_to_montgomery_lanes<const L: usize>(c: &mut [i16; N]) {
-    const F: i32 = ((1u64 << 32) % (Q as u64)) as i32; // R^2 mod q = 1353
-    let f = Simd::<i32, L>::splat(F);
+    const F: i16 = ((1u64 << 32) % (Q as u64)) as i16; // R^2 mod q = 1353
+    let f = Simd::<i16, L>::splat(F);
     for chunk in c.as_chunks_mut::<L>().0 {
-        *chunk = montgomery_reduce_vec(Simd::from_array(*chunk).cast() * f).into();
+        *chunk = fqmul_vec(Simd::from_array(*chunk), f).into();
     }
 }
 

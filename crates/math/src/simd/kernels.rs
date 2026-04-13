@@ -2,38 +2,32 @@ use core::simd::{Simd, prelude::*};
 
 use crate::{Q, reduce::QINV};
 
-/// Lane count used by kernel-level unit tests (16 x i16 = 256-bit).
-#[cfg(test)]
-const DEFAULT_LANES: usize = 16;
+/// Multiply high: `(a * b) >> 16` (`vpmulhw`).
+macro_rules! mulhi {
+    ($a:expr, $b:expr) => {
+        ((($a).cast::<i32>() * ($b).cast::<i32>()) >> Simd::splat(16)).cast::<i16>()
+    };
+}
 
 /// Barrett reduction: `r \equiv a \pmod{q}`, centered `|r| <= q/2`.
 #[inline]
 #[must_use]
 pub fn barrett_reduce_vec<const L: usize>(a: Simd<i16, L>) -> Simd<i16, L> {
-    const V: i32 = 20159;
-    let aw: Simd<i32, L> = a.cast();
-    let t =
-        ((Simd::<i32, L>::splat(V) * aw + Simd::splat(1 << 25)) >> Simd::splat(26)).cast::<i16>();
-    a - t * Simd::splat(Q)
-}
-
-/// Montgomery reduction: `a * R^{-1} mod q`, `R = 2^{16}`.
-#[inline]
-#[must_use]
-pub fn montgomery_reduce_vec<const L: usize>(a: Simd<i32, L>) -> Simd<i16, L> {
-    let qinv = Simd::<i32, L>::splat(QINV as i32);
-    let q = Simd::<i32, L>::splat(Q as i32);
-    let s16 = Simd::splat(16);
-    let a_lo = (a << s16) >> s16;
-    let t = ((a_lo * qinv) << s16) >> s16;
-    ((a - t * q) >> s16).cast::<i16>()
+    const V: i16 = 20159;
+    let t = mulhi!(a, Simd::splat(V)); // (a * V) >> 16 -> vpmulhw
+    let t = (t + Simd::splat(1 << 9)) >> Simd::splat(10); // remaining shift + rounding
+    a - t * Simd::splat(Q) // -> vpmullw, vpsubw
 }
 
 /// Field multiply: `a * b * R^{-1} mod q`.
 #[inline]
 #[must_use]
 pub fn fqmul_vec<const L: usize>(a: Simd<i16, L>, b: Simd<i16, L>) -> Simd<i16, L> {
-    montgomery_reduce_vec(a.cast::<i32>() * b.cast::<i32>())
+    let ab_lo = a * b; // wrapping i16 mul -> vpmullw
+    let ab_hi = mulhi!(a, b); // high i16 half   -> vpmulhw
+    let t = ab_lo * Simd::splat(QINV); // wrapping i16 mul -> vpmullw
+    let tq_hi = mulhi!(t, Simd::splat(Q)); // high i16 half   -> vpmulhw
+    ab_hi - tq_hi //                 -> vpsubw
 }
 
 /// ceil(2^40 / Q). Exact for all numerators < 2^23 (max compress numerator is
@@ -89,24 +83,10 @@ pub fn decompress_d_vec<const L: usize>(y: Simd<i16, L>, d: u32) -> Simd<i16, L>
 mod tests {
     use core::simd::Simd;
 
-    use super::{
-        DEFAULT_LANES, compress_d_vec, decompress_d_vec, fqmul_vec, montgomery_reduce_vec,
-    };
+    use super::{compress_d_vec, decompress_d_vec, fqmul_vec};
     use crate::{N, Q, compress::csubq, reduce};
 
-    #[test]
-    fn simd_montgomery_matches_scalar() {
-        for val in [-100_000_i32, -1, 0, 1, 50_000, 100_000] {
-            let v = Simd::<i32, DEFAULT_LANES>::splat(val);
-            let result = montgomery_reduce_vec(v);
-            let expected = reduce::montgomery_reduce(val);
-            assert!(
-                result.as_array().iter().all(|&x| x == expected),
-                "mismatch for {val}: simd={}, scalar={expected}",
-                result.as_array()[0]
-            );
-        }
-    }
+    const DEFAULT_LANES: usize = 16;
 
     #[test]
     fn simd_fqmul_matches_scalar() {
