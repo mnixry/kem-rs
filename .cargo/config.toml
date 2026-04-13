@@ -1,10 +1,5 @@
 [target.'cfg(unix)']
-rustflags = [
-  "-Ctarget-cpu=native",
-  "-Cforce-frame-pointers=yes",
-  "-Clink-arg=-fuse-ld=lld",
-  "-Clinker-plugin-lto",
-]
+rustflags = ["-Ctarget-cpu=native", "-Cforce-frame-pointers=yes"]
 
 [unstable]
 build-std = ["core", "std", "alloc"]

@@ -23,7 +23,12 @@
       systems = inputs.nixpkgs.lib.systems.flakeExposed;
       imports = [ inputs.treefmt-nix.flakeModule ];
       perSystem =
-        { lib, system, ... }:
+        {
+          config,
+          lib,
+          system,
+          ...
+        }:
         let
           pkgs = import inputs.nixpkgs {
             inherit system;
@@ -51,7 +56,6 @@
                   "${rust}/lib/rustlib/src/rust/library/Cargo.lock"
                 ];
               };
-              nativeBuildInputs = with pkgs; [ llvmPackages.lld ];
             };
           cargoArtifacts = craneLib.buildDepsOnly craneCommonArgs;
         in
@@ -75,10 +79,10 @@
             };
           devShells.default = pkgs.mkShell {
             inherit (pkgs) stdenv;
+            inputsFrom = [ config.treefmt.build.devShell ];
             buildInputs =
               lib.singleton rust
               ++ (with pkgs; [
-                llvmPackages.lld
                 llvmPackages.bolt
                 cargo-flamegraph
                 cargo-edit
@@ -107,13 +111,11 @@
               // {
                 inherit cargoArtifacts;
                 pnameSuffix = "-benchmark";
-                nativeBuildInputs =
-                  craneCommonArgs.nativeBuildInputs
-                  ++ (with pkgs; [
-                    cargo-pgo
-                    gnuplot
-                    pprof
-                  ]);
+                nativeBuildInputs = with pkgs; [
+                  cargo-pgo
+                  gnuplot
+                  pprof
+                ];
                 buildPhaseCargoCommand = ''
                   cargo bench
                   cargo pgo bench -- -- --profile-time 10
@@ -127,12 +129,10 @@
               // {
                 inherit cargoArtifacts;
                 pnameSuffix = "-coverage";
-                nativeBuildInputs =
-                  craneCommonArgs.nativeBuildInputs
-                  ++ (with pkgs; [
-                    cargo-nextest
-                    cargo-llvm-cov
-                  ]);
+                nativeBuildInputs = with pkgs; [
+                  cargo-nextest
+                  cargo-llvm-cov
+                ];
                 buildPhaseCargoCommand = ''
                   cargo llvm-cov nextest --all-features
                 '';
