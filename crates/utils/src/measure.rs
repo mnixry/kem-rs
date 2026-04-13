@@ -1,34 +1,37 @@
 use std::time::Duration;
 
-use criterion::{
-    Criterion,
-    measurement::{Measurement, WallTime},
-};
+use criterion::measurement::{Measurement, WallTime};
 use nix::sys::{
     resource::{UsageWho, getrusage},
-    time::TimeValLike,
+    time::{TimeVal, TimeValLike},
 };
 
-pub struct CPUTime;
+pub struct UserTime;
 
-impl CPUTime {
-    fn get_time() -> Duration {
+impl UserTime {
+    fn get_time() -> TimeVal {
         let rc = getrusage(UsageWho::RUSAGE_SELF).expect("failed to get process CPU time");
-        Duration::from_micros(rc.user_time().num_microseconds().cast_unsigned())
+        rc.user_time()
     }
 }
 
-impl Measurement for CPUTime {
-    type Intermediate = Duration;
+impl Measurement for UserTime {
+    type Intermediate = TimeVal;
     type Value = Duration;
 
     fn start(&self) -> Self::Intermediate {
         Self::get_time()
     }
 
+    #[allow(clippy::cast_sign_loss)]
     fn end(&self, i: Self::Intermediate) -> Self::Value {
-        let now = Self::get_time();
-        now.saturating_sub(i)
+        let elapsed = Self::get_time() - i;
+        Duration::from_nanos(
+            elapsed
+                .num_nanoseconds()
+                .try_into()
+                .expect("time gone backwards"),
+        )
     }
 
     fn add(&self, v1: &Self::Value, v2: &Self::Value) -> Self::Value {
@@ -48,5 +51,3 @@ impl Measurement for CPUTime {
         WallTime.formatter()
     }
 }
-
-pub type CPUTimeConfig = Criterion<CPUTime>;

@@ -7,11 +7,11 @@
 
 use core::hint::black_box;
 
-use criterion::{Criterion, criterion_group, criterion_main};
 use kem_rs::ParameterSet;
+use kem_utils::criterion::{criterion_group, criterion_main};
 
 #[allow(clippy::many_single_char_names)]
-fn bench_hotpaths<P: ParameterSet>(crit: &mut Criterion, label: &str) {
+fn bench_hotpaths<P: ParameterSet>(crit: &mut kem_utils::CriterionConfig, label: &str) {
     let mut group = crit.benchmark_group(format!("hotpath/{label}"));
     let seed = [0x42u8; 32];
 
@@ -63,11 +63,15 @@ fn bench_hotpaths<P: ParameterSet>(crit: &mut Criterion, label: &str) {
     group.finish();
 }
 
-fn hotpath_benches(c: &mut Criterion) {
+fn hotpath_benches(c: &mut kem_utils::CriterionConfig) {
     bench_hotpaths::<kem_rs::MlKem512>(c, "MlKem512");
     bench_hotpaths::<kem_rs::MlKem768>(c, "MlKem768");
     bench_hotpaths::<kem_rs::MlKem1024>(c, "MlKem1024");
 }
 
-criterion_group!(benches, hotpath_benches);
+criterion_group! {
+    name = benches;
+    config = kem_utils::criterion_config();
+    targets = hotpath_benches
+}
 criterion_main!(benches);

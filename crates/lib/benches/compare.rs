@@ -1,12 +1,10 @@
 //! Side-by-side performance comparison: kem-rs vs `RustCrypto` ml-kem vs
 //! mlkem-native (C/asm) vs `PQMagic` (C, SHAKE mode).
-mod common;
 
 use core::hint::black_box;
 
-use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
+use kem_utils::criterion::{BenchmarkId, criterion_group, criterion_main};
 use ml_kem::{EncapsulateDeterministic, KemCore, kem::Decapsulate};
-use pprof::criterion::{Output, PProfProfiler};
 
 fn keygen_coins(tag: u8) -> ([u8; 32], [u8; 32], [u8; 64]) {
     let full: [u8; 64] = core::array::from_fn(|i| (i as u8).wrapping_add(tag.wrapping_mul(37)));
@@ -46,7 +44,9 @@ macro_rules! dispatch_binding_function {
     clippy::similar_names,
     clippy::too_many_lines
 )]
-fn bench_param_set<P: kem_rs::ParameterSet, RC: KemCore>(c: &mut common::CPUTimeConfig, tag: u8) {
+fn bench_param_set<P: kem_rs::ParameterSet, RC: KemCore>(
+    c: &mut kem_utils::CriterionConfig, tag: u8,
+) {
     let mut g = c.benchmark_group(format!(
         "compare/{}",
         std::any::type_name::<P>()
@@ -163,7 +163,7 @@ fn bench_param_set<P: kem_rs::ParameterSet, RC: KemCore>(c: &mut common::CPUTime
     g.finish();
 }
 
-fn compare_benches(c: &mut common::CPUTimeConfig) {
+fn compare_benches(c: &mut kem_utils::CriterionConfig) {
     bench_param_set::<kem_rs::MlKem512, ml_kem::MlKem512>(c, 1);
     bench_param_set::<kem_rs::MlKem768, ml_kem::MlKem768>(c, 2);
     bench_param_set::<kem_rs::MlKem1024, ml_kem::MlKem1024>(c, 3);
@@ -171,9 +171,7 @@ fn compare_benches(c: &mut common::CPUTimeConfig) {
 
 criterion_group! {
     name = benches;
-    config = Criterion::default()
-        .with_profiler(PProfProfiler::new(1000, Output::Flamegraph(None)))
-        .with_measurement(common::CPUTime);
+    config = kem_utils::criterion_config();
     targets = compare_benches
 }
 criterion_main!(benches);

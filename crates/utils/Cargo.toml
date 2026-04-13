@@ -1,0 +1,18 @@
+[package]
+edition = "2024"
+name    = "kem-utils"
+version = "0.1.0"
+
+[dependencies]
+criterion = { version = "0.8.2", features = ["html_reports"] }
+nix       = { version = "0.31.2", features = ["resource"] }
+
+[dependencies.pprof]
+features = ["flamegraph", "frame-pointer", "prost-codec"]
+version  = "0.15.0"
+
+[lints]
+workspace = true
+
+[lib]
+bench = false

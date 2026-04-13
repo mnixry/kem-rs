@@ -10,7 +10,7 @@ workspace = true
 zeroize.workspace = true
 
 [dev-dependencies]
-criterion.workspace = true
+kem-utils.workspace = true
 
 [lib]
 bench = false

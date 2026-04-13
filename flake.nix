@@ -112,6 +112,7 @@
                   ++ (with pkgs; [
                     cargo-pgo
                     gnuplot
+                    pprof
                   ]);
                 buildPhaseCargoCommand = ''
                   cargo bench

@@ -19,21 +19,16 @@ zeroize.workspace  = true
 aes       = "0.9.0"
 getrandom = { version = "0.4.2", features = ["sys_rng"] }
 ml-kem    = { version = "0.2.3", features = ["deterministic"] }
-nix       = { version = "0.31.2", features = ["time", "resource"] }
 rand_core = "0.10.0"
 sha2      = "0.11.0"
 
-criterion.workspace  = true
 hex.workspace        = true
+kem-utils.workspace  = true
 serde.workspace      = true
 serde_json.workspace = true
 
 mlkem-native-rs = { path = "../../bindings/mlkem-native-rs" }
 pqmagic-rs      = { path = "../../bindings/pqmagic-rs" }
-
-[dev-dependencies.pprof]
-features = ["flamegraph", "frame-pointer", "criterion"]
-version  = "0.15.0"
 
 [lib]
 bench = false

@@ -5,10 +5,10 @@
 
 use core::hint::black_box;
 
-use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use kem_math::{Eta2, Eta3};
+use kem_utils::criterion::{BenchmarkId, criterion_group, criterion_main};
 
-fn bench_scalar_hash(c: &mut Criterion) {
+fn bench_scalar_hash(c: &mut kem_utils::CriterionConfig) {
     let mut g = c.benchmark_group("hash");
 
     let input_32 = [0x42u8; 32];
@@ -25,7 +25,7 @@ fn bench_scalar_hash(c: &mut Criterion) {
     g.finish();
 }
 
-fn bench_rkprf(c: &mut Criterion) {
+fn bench_rkprf(c: &mut kem_utils::CriterionConfig) {
     let mut g = c.benchmark_group("rkprf");
     let key = [0x42u8; 32];
 
@@ -39,7 +39,7 @@ fn bench_rkprf(c: &mut Criterion) {
     g.finish();
 }
 
-fn bench_xof(c: &mut Criterion) {
+fn bench_xof(c: &mut kem_utils::CriterionConfig) {
     let mut g = c.benchmark_group("xof");
 
     let seed = [0x42u8; 32];
@@ -58,7 +58,7 @@ fn bench_xof(c: &mut Criterion) {
         b.iter_batched(
             || kem_hash::xof_absorb_x4(&seed, indices),
             |mut reader| black_box(reader.squeeze_blocks()),
-            criterion::BatchSize::SmallInput,
+            kem_utils::criterion::BatchSize::SmallInput,
         );
     });
 
@@ -74,7 +74,7 @@ fn bench_xof(c: &mut Criterion) {
     g.finish();
 }
 
-fn bench_prf(c: &mut Criterion) {
+fn bench_prf(c: &mut kem_utils::CriterionConfig) {
     let mut g = c.benchmark_group("prf");
 
     let seed = [0x42u8; 32];
@@ -101,12 +101,16 @@ fn bench_prf(c: &mut Criterion) {
     g.finish();
 }
 
-fn keccak_benches(c: &mut Criterion) {
+fn keccak_benches(c: &mut kem_utils::CriterionConfig) {
     bench_scalar_hash(c);
     bench_rkprf(c);
     bench_xof(c);
     bench_prf(c);
 }
 
-criterion_group!(benches, keccak_benches);
+criterion_group! {
+    name = benches;
+    config = kem_utils::criterion_config();
+    targets = keccak_benches
+}
 criterion_main!(benches);

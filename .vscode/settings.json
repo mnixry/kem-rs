@@ -5,6 +5,7 @@
         "Ciphertext",
         "deinterleave",
         "derand",
+        "flamegraph",
         "keygen",
         "keypair",
         "POLYBYTES",

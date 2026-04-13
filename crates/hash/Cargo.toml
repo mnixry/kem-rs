@@ -12,9 +12,9 @@ keccak = { version = "0.1.6", features = ["simd"] }
 kem-math.workspace = true
 
 [dev-dependencies]
-criterion.workspace  = true
 hex.workspace        = true
 kem-math.workspace   = true
+kem-utils.workspace  = true
 serde.workspace      = true
 serde_json.workspace = true
 

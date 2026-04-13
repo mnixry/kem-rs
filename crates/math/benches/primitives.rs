@@ -5,8 +5,8 @@
 
 use core::hint::black_box;
 
-use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use kem_math::{D4, D5, D10, D11, NttPolynomial, Polynomial, Q};
+use kem_utils::criterion::{BenchmarkId, criterion_group, criterion_main};
 
 #[allow(clippy::cast_possible_wrap)]
 fn test_poly(seed: i16) -> Polynomial {
@@ -15,7 +15,7 @@ fn test_poly(seed: i16) -> Polynomial {
     }))
 }
 
-fn bench_ntt(c: &mut Criterion) {
+fn bench_ntt(c: &mut kem_utils::CriterionConfig) {
     let mut g = c.benchmark_group("ntt");
 
     g.bench_function("forward", |b| {
@@ -36,7 +36,7 @@ fn bench_ntt(c: &mut Criterion) {
     g.finish();
 }
 
-fn bench_basemul(c: &mut Criterion) {
+fn bench_basemul(c: &mut kem_utils::CriterionConfig) {
     let mut g = c.benchmark_group("basemul");
 
     let a = test_poly(31).ntt();
@@ -49,7 +49,7 @@ fn bench_basemul(c: &mut Criterion) {
     g.finish();
 }
 
-fn bench_reduce(c: &mut Criterion) {
+fn bench_reduce(c: &mut kem_utils::CriterionConfig) {
     let mut g = c.benchmark_group("reduce");
 
     g.bench_function("poly_reduce", |b| {
@@ -69,7 +69,7 @@ fn bench_reduce(c: &mut Criterion) {
     g.finish();
 }
 
-fn bench_compress(c: &mut Criterion) {
+fn bench_compress(c: &mut kem_utils::CriterionConfig) {
     let mut g = c.benchmark_group("compress");
     let p = test_poly(31);
 
@@ -94,7 +94,7 @@ fn bench_compress(c: &mut Criterion) {
     g.finish();
 }
 
-fn bench_encode(c: &mut Criterion) {
+fn bench_encode(c: &mut kem_utils::CriterionConfig) {
     let mut g = c.benchmark_group("encode");
 
     let p = test_poly(31).ntt();
@@ -115,7 +115,7 @@ fn bench_encode(c: &mut Criterion) {
     g.finish();
 }
 
-fn primitives_benches(c: &mut Criterion) {
+fn primitives_benches(c: &mut kem_utils::CriterionConfig) {
     bench_ntt(c);
     bench_basemul(c);
     bench_reduce(c);
@@ -123,5 +123,9 @@ fn primitives_benches(c: &mut Criterion) {
     bench_encode(c);
 }
 
-criterion_group!(benches, primitives_benches);
+criterion_group! {
+    name = benches;
+    config = kem_utils::criterion_config();
+    targets = primitives_benches
+}
 criterion_main!(benches);
