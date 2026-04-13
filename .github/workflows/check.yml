@@ -3,7 +3,11 @@ on:
   push:
 jobs:
   check:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        runs-on: [ubuntu-latest, ubuntu-24.04-arm, macos-latest]
+      fail-fast: false
+    runs-on: ${{ matrix.runs-on }}
     steps:
       - uses: actions/checkout@main
       - uses: ./.github/actions/setup-nix
@@ -24,7 +28,11 @@ jobs:
           path: result
           name: coverage-results
   bench:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        runs-on: [ubuntu-latest, ubuntu-24.04-arm, macos-latest]
+      fail-fast: false
+    runs-on: ${{ matrix.runs-on }}
     needs: check
     steps:
       - uses: actions/checkout@main
@@ -33,4 +41,4 @@ jobs:
       - uses: actions/upload-artifact@main
         with:
           path: result
-          name: benchmark-results
+          name: benchmark-results-${{ matrix.runs-on }}

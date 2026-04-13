@@ -6,6 +6,7 @@ runs:
     - uses: DeterminateSystems/nix-installer-action@main
       with:
         diagnostic-endpoint: ""
+        summarize: false
     - uses: DeterminateSystems/magic-nix-cache-action@main
       with:
         diff-store: true
@@ -13,5 +14,5 @@ runs:
     - uses: actions/cache@main
       with:
         path: ~/.cache/nix
-        key: ${{ runner.os }}-nix-cache-${{ github.sha }}
-        restore-keys: ${{ runner.os }}-nix-cache-
+        key: nix-cache-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}
+        restore-keys: nix-cache-${{ runner.os }}-${{ runner.arch }}-
