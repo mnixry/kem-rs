@@ -10,8 +10,7 @@ workspace = true
 zeroize.workspace = true
 
 [dev-dependencies]
-core_affinity.workspace = true
-criterion.workspace     = true
+criterion.workspace = true
 
 [lib]
 bench = false

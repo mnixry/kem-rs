@@ -10,13 +10,6 @@ use core::hint::black_box;
 use criterion::{Criterion, criterion_group, criterion_main};
 use kem_rs::ParameterSet;
 
-fn pin_core() {
-    let id = core_affinity::get_core_ids()
-        .and_then(|ids| ids.first().copied())
-        .expect("no core ids");
-    core_affinity::set_for_current(id);
-}
-
 #[allow(clippy::many_single_char_names)]
 fn bench_hotpaths<P: ParameterSet>(crit: &mut Criterion, label: &str) {
     let mut group = crit.benchmark_group(format!("hotpath/{label}"));
@@ -71,7 +64,6 @@ fn bench_hotpaths<P: ParameterSet>(crit: &mut Criterion, label: &str) {
 }
 
 fn hotpath_benches(c: &mut Criterion) {
-    pin_core();
     bench_hotpaths::<kem_rs::MlKem512>(c, "MlKem512");
     bench_hotpaths::<kem_rs::MlKem768>(c, "MlKem768");
     bench_hotpaths::<kem_rs::MlKem1024>(c, "MlKem1024");

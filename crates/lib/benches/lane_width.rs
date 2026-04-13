@@ -81,12 +81,6 @@ fn bench_lane_widths_for<P: kem_rs::ParameterSet>(c: &mut common::CPUTimeConfig)
 }
 
 fn lane_width_benches(c: &mut common::CPUTimeConfig) {
-    let core_id = core_affinity::get_core_ids()
-        .and_then(|ids| ids.first().copied())
-        .expect("no core ids found");
-    core_affinity::set_for_current(core_id);
-    println!("Running lane-width benchmarks on core {core_id:?}");
-
     bench_lane_widths_for::<kem_rs::MlKem512>(c);
     bench_lane_widths_for::<kem_rs::MlKem768>(c);
     bench_lane_widths_for::<kem_rs::MlKem1024>(c);

@@ -8,13 +8,6 @@ use core::hint::black_box;
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use kem_math::{Eta2, Eta3};
 
-fn pin_core() {
-    let id = core_affinity::get_core_ids()
-        .and_then(|ids| ids.first().copied())
-        .expect("no core ids");
-    core_affinity::set_for_current(id);
-}
-
 fn bench_scalar_hash(c: &mut Criterion) {
     let mut g = c.benchmark_group("hash");
 
@@ -109,7 +102,6 @@ fn bench_prf(c: &mut Criterion) {
 }
 
 fn keccak_benches(c: &mut Criterion) {
-    pin_core();
     bench_scalar_hash(c);
     bench_rkprf(c);
     bench_xof(c);

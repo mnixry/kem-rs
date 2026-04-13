@@ -23,11 +23,10 @@ nix       = { version = "0.31.2", features = ["time", "resource"] }
 rand_core = "0.10.0"
 sha2      = "0.11.0"
 
-core_affinity.workspace = true
-criterion.workspace     = true
-hex.workspace           = true
-serde.workspace         = true
-serde_json.workspace    = true
+criterion.workspace  = true
+hex.workspace        = true
+serde.workspace      = true
+serde_json.workspace = true
 
 mlkem-native-rs = { path = "../../bindings/mlkem-native-rs" }
 pqmagic-rs      = { path = "../../bindings/pqmagic-rs" }

@@ -15,13 +15,6 @@ fn test_poly(seed: i16) -> Polynomial {
     }))
 }
 
-fn pin_core() {
-    let id = core_affinity::get_core_ids()
-        .and_then(|ids| ids.first().copied())
-        .expect("no core ids");
-    core_affinity::set_for_current(id);
-}
-
 fn bench_ntt(c: &mut Criterion) {
     let mut g = c.benchmark_group("ntt");
 
@@ -123,7 +116,6 @@ fn bench_encode(c: &mut Criterion) {
 }
 
 fn primitives_benches(c: &mut Criterion) {
-    pin_core();
     bench_ntt(c);
     bench_basemul(c);
     bench_reduce(c);
