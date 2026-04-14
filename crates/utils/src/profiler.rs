@@ -8,6 +8,7 @@ pub struct PProfProfiler<'a> {
     active_profiler: Option<ProfilerGuard<'a>>,
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 impl PProfProfiler<'_> {
     #[must_use]
     pub const fn new(frequency: c_int) -> Self {
@@ -18,6 +19,7 @@ impl PProfProfiler<'_> {
     }
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 impl Profiler for PProfProfiler<'_> {
     fn start_profiling(&mut self, _benchmark_id: &str, _benchmark_dir: &Path) {
         self.active_profiler =

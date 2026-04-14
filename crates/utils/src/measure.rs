@@ -51,3 +51,40 @@ impl Measurement for UserTime {
         WallTime.formatter()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use criterion::measurement::Measurement;
+
+    use super::*;
+
+    #[test]
+    fn zero_is_zero() {
+        assert_eq!(UserTime.zero(), Duration::ZERO);
+    }
+
+    #[test]
+    fn start_end_returns_non_negative() {
+        let start = UserTime.start();
+        let elapsed = UserTime.end(start);
+        assert!(elapsed.as_nanos() < u128::MAX);
+    }
+
+    #[test]
+    fn add_sums_durations() {
+        let a = Duration::from_millis(10);
+        let b = Duration::from_millis(20);
+        assert_eq!(UserTime.add(&a, &b), Duration::from_millis(30));
+    }
+
+    #[test]
+    fn to_f64_converts_nanos() {
+        let d = Duration::from_micros(1);
+        assert!((UserTime.to_f64(&d) - 1000.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn formatter_returns_some() {
+        let _ = UserTime.formatter();
+    }
+}

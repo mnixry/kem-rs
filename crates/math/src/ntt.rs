@@ -9,6 +9,7 @@ use crate::{
 
 const Q64: i64 = crate::Q as i64;
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 const fn pow_mod(mut base: i64, mut exp: i64, modulus: i64) -> i64 {
     let mut result: i64 = 1;
     base %= modulus;
@@ -22,6 +23,7 @@ const fn pow_mod(mut base: i64, mut exp: i64, modulus: i64) -> i64 {
     result
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 const fn bitrev7(x: usize) -> usize {
     ((x >> 6) & 1)
         | (((x >> 5) & 1) << 1)
@@ -33,6 +35,7 @@ const fn bitrev7(x: usize) -> usize {
 }
 
 /// Centred representative of `val mod q` in `[-(q-1)/2, (q-1)/2]`.
+#[cfg_attr(coverage_nightly, coverage(off))]
 const fn centred(val: i64) -> i16 {
     if val > Q64 / 2 {
         (val - Q64) as i16
@@ -278,5 +281,67 @@ mod tests {
             let got = normalise(got_raw);
             assert_eq!(got, exp, "mismatch at {i}: got {got}, expected {exp}");
         }
+    }
+
+    #[test]
+    fn ntt_roundtrip_all_lane_widths() {
+        use crate::simd::{LaneWidth, set_lane_width};
+
+        let mut a = [0i16; N];
+        for (i, c) in a.iter_mut().enumerate() {
+            *c = (i % 13) as i16;
+        }
+        let original = a;
+
+        for width in [
+            LaneWidth::L8,
+            LaneWidth::L16,
+            LaneWidth::L32,
+            LaneWidth::L64,
+        ] {
+            let mut r = original;
+            set_lane_width(width);
+            forward_ntt(&mut r);
+            assert_ne!(r, original, "NTT no-op at width {width:?}");
+            inverse_ntt(&mut r);
+            for c in &mut r {
+                *c = barrett_reduce(fqmul(*c, 1));
+            }
+            assert_eq!(r, original, "roundtrip failed at width {width:?}");
+        }
+        set_lane_width(LaneWidth::L16);
+    }
+
+    #[test]
+    fn ntt_basemul_all_lane_widths() {
+        use crate::{
+            poly::Polynomial,
+            simd::{LaneWidth, set_lane_width},
+        };
+
+        let mut a = Polynomial::zero();
+        let mut b = Polynomial::zero();
+        for i in 0..N {
+            a.0[i] = ((i * 7 + 3) % 100) as i16;
+            b.0[i] = ((i * 13 + 1) % 100) as i16;
+        }
+        let expected = schoolbook_mul(&a.0, &b.0);
+
+        for width in [
+            LaneWidth::L8,
+            LaneWidth::L16,
+            LaneWidth::L32,
+            LaneWidth::L64,
+        ] {
+            set_lane_width(width);
+            let a_ntt = a.ntt();
+            let b_ntt = b.ntt();
+            let c = a_ntt.basemul(&b_ntt).ntt_inverse();
+            for (i, (&got_raw, &exp)) in c.coeffs().iter().zip(expected.iter()).enumerate() {
+                let got = normalise(got_raw);
+                assert_eq!(got, exp, "mismatch at {i} (width {width:?})");
+            }
+        }
+        set_lane_width(LaneWidth::L16);
     }
 }

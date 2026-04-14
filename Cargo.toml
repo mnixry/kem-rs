@@ -13,6 +13,12 @@ kem-hash  = { path = "crates/hash" }
 kem-math  = { path = "crates/math" }
 kem-utils = { path = "crates/utils" }
 
+[workspace.lints.rust]
+unsafe_code = "deny"
+warnings    = "warn"
+
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage_nightly)'] }
+
 [workspace.lints.clippy]
 all      = { level = "warn", priority = -1 }
 cargo    = { level = "warn", priority = -1 }

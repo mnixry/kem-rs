@@ -7,7 +7,7 @@
 
 #![no_std]
 #![feature(portable_simd)]
-#![deny(unsafe_code)]
+#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 #![allow(
     clippy::cast_lossless,
     clippy::cast_possible_wrap,

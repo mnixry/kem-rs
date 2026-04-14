@@ -42,6 +42,7 @@ const fn check(rc: c_int) -> Result<(), Error> {
     }
 }
 
+#[allow(unsafe_code)]
 pub(crate) mod ffi {
     use core::ffi::c_int;
 
@@ -80,7 +81,7 @@ macro_rules! impl_mlkem {
         enc_derand = $ffi_enc:path,
         dec = $ffi_dec:path $(,)?
     ) => {
-        #[allow(clippy::missing_errors_doc)]
+        #[allow(clippy::missing_errors_doc, unsafe_code)]
         pub mod $mod {
             use super::{Error, MLKEM_BYTES, check};
 
@@ -145,3 +146,37 @@ impl_mlkem!(
     enc_derand = crate::ffi::PQCP_MLKEM_NATIVE_MLKEM1024_enc_derand,
     dec = crate::ffi::PQCP_MLKEM_NATIVE_MLKEM1024_dec,
 );
+
+#[cfg(test)]
+mod tests {
+    use super::Error;
+
+    #[test]
+    fn error_display() {
+        assert_eq!(Error::Fail.to_string(), "mlkem-native operation failed");
+        assert_eq!(Error::OutOfMemory.to_string(), "mlkem-native out of memory");
+    }
+
+    #[test]
+    fn error_is_std_error() {
+        use std::error::Error as _;
+        assert!(Error::Fail.source().is_none());
+        assert!(Error::OutOfMemory.source().is_none());
+    }
+
+    #[test]
+    fn check_ok() {
+        assert!(super::check(0).is_ok());
+    }
+
+    #[test]
+    fn check_oom() {
+        assert_eq!(super::check(-2), Err(Error::OutOfMemory));
+    }
+
+    #[test]
+    fn check_other_failure() {
+        assert_eq!(super::check(-1), Err(Error::Fail));
+        assert_eq!(super::check(1), Err(Error::Fail));
+    }
+}

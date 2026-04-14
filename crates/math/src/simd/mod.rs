@@ -69,3 +69,42 @@ macro_rules! dispatch_lanes {
     };
 }
 pub(crate) use dispatch_lanes;
+
+#[cfg(test)]
+mod tests {
+    extern crate alloc;
+
+    use super::*;
+
+    const ALL_WIDTHS: [LaneWidth; 4] = [
+        LaneWidth::L8,
+        LaneWidth::L16,
+        LaneWidth::L32,
+        LaneWidth::L64,
+    ];
+
+    #[test]
+    fn set_get_roundtrip() {
+        for &w in &ALL_WIDTHS {
+            set_lane_width(w);
+            assert_eq!(get_lane_width(), w);
+        }
+        set_lane_width(LaneWidth::L16);
+    }
+
+    #[test]
+    fn display() {
+        use alloc::string::ToString;
+        assert_eq!(LaneWidth::L8.to_string(), "8");
+        assert_eq!(LaneWidth::L16.to_string(), "16");
+        assert_eq!(LaneWidth::L32.to_string(), "32");
+        assert_eq!(LaneWidth::L64.to_string(), "64");
+    }
+
+    #[test]
+    fn from_u8() {
+        for &w in &ALL_WIDTHS {
+            assert_eq!(LaneWidth::from(w as u8), w);
+        }
+    }
+}

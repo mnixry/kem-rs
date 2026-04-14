@@ -61,7 +61,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         "aarch64" => {
             build.define("MLK_FORCE_AARCH64", None);
-            build.flag_if_supported("-march=armv8.4-a+sha3");
         }
         "riscv64" => {
             build.define("MLK_FORCE_RISCV64", None);

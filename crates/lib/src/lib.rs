@@ -4,7 +4,7 @@
 //! ML-KEM-512, ML-KEM-768, and ML-KEM-1024.
 
 #![no_std]
-#![deny(unsafe_code)]
+#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
 pub mod kem;
 pub mod params;

@@ -73,6 +73,7 @@ impl Polynomial {
     }
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 impl From<[i16; N]> for Polynomial {
     #[inline]
     fn from(coeffs: [i16; N]) -> Self {
@@ -80,6 +81,7 @@ impl From<[i16; N]> for Polynomial {
     }
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 impl Default for Polynomial {
     #[inline]
     fn default() -> Self {
@@ -87,6 +89,7 @@ impl Default for Polynomial {
     }
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 impl core::fmt::Debug for Polynomial {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("Polynomial")

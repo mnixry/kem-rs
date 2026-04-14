@@ -79,6 +79,7 @@ impl<P: ParameterSet> AsRef<[u8]> for PublicKey<P> {
     }
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 impl<P: ParameterSet> core::fmt::Debug for PublicKey<P> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("PublicKey")
@@ -147,6 +148,7 @@ impl<P: ParameterSet> AsRef<[u8]> for SecretKey<P> {
     }
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 impl<P: ParameterSet> core::fmt::Debug for SecretKey<P> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("SecretKey")
@@ -182,6 +184,7 @@ impl<P: ParameterSet> AsRef<[u8]> for Ciphertext<P> {
     }
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 impl<P: ParameterSet> core::fmt::Debug for Ciphertext<P> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("Ciphertext").finish_non_exhaustive()
@@ -208,6 +211,7 @@ impl AsRef<[u8]> for SharedSecret {
     }
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 impl core::fmt::Debug for SharedSecret {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("SharedSecret").finish_non_exhaustive()

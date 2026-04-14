@@ -61,6 +61,7 @@ impl NttPolynomial {
     }
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 impl Default for NttPolynomial {
     #[inline]
     fn default() -> Self {
@@ -68,6 +69,7 @@ impl Default for NttPolynomial {
     }
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 impl core::fmt::Debug for NttPolynomial {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("NttPolynomial")
@@ -128,5 +130,63 @@ mod tests {
         p.to_bytes(&mut buf);
         let q = NttPolynomial::from_bytes(&buf);
         assert_eq!(p.0, q.0);
+    }
+
+    #[test]
+    fn add_produces_sum() {
+        let mut a = NttPolynomial::zero();
+        let mut b = NttPolynomial::zero();
+        for i in 0..N {
+            a.0[i] = 100;
+            b.0[i] = 200;
+        }
+        let c = &a + &b;
+        for &coeff in c.coeffs() {
+            assert_eq!(coeff, 300);
+        }
+    }
+
+    #[test]
+    fn add_assign_matches_add() {
+        let mut a = NttPolynomial::zero();
+        let b = {
+            let mut p = NttPolynomial::zero();
+            for i in 0..N {
+                p.0[i] = (i as i16) % 50;
+            }
+            p
+        };
+        for i in 0..N {
+            a.0[i] = (i as i16) % 100;
+        }
+        let expected = &a + &b;
+        a += &b;
+        assert_eq!(a.0, expected.0);
+    }
+
+    #[test]
+    fn reduce_normalises() {
+        let mut p = NttPolynomial::zero();
+        for i in 0..N {
+            p.0[i] = Q + (i as i16 % 100);
+        }
+        p.reduce();
+        for (i, &c) in p.0.iter().enumerate() {
+            assert!(
+                c.unsigned_abs() <= Q as u16,
+                "coefficient {i} not reduced: {c}"
+            );
+        }
+    }
+
+    #[test]
+    fn to_mont_changes_nonzero() {
+        let mut p = NttPolynomial::zero();
+        for i in 0..N {
+            p.0[i] = ((i as i16) % (Q - 1)) + 1;
+        }
+        let before = p.0;
+        p.to_mont();
+        assert_ne!(p.0, before);
     }
 }

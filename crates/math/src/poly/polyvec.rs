@@ -189,18 +189,6 @@ impl<const K: usize> ops::AddAssign<&Self> for NttVector<K> {
     }
 }
 
-impl<const K: usize> Default for Vector<K> {
-    fn default() -> Self {
-        Self::zero()
-    }
-}
-
-impl<const K: usize> Default for NttVector<K> {
-    fn default() -> Self {
-        Self::zero()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
