@@ -6,16 +6,17 @@
 
 use core::simd::u64x4;
 
-use kem_math::{ByteArray, CbdWidth};
+use kem_math::{ByteArray, CbdWidth, unroll};
 
 use crate::{SHAKE_PAD, SHAKE128_RATE, SHAKE256_RATE, SYMBYTES};
 
 const PLEN: usize = 25;
 
 fn absorb_seed(state: &mut [u64x4; PLEN], seed: &[u8; SYMBYTES]) {
-    for (s, chunk) in state.iter_mut().zip(seed.as_chunks().0) {
-        *s = u64x4::splat(u64::from_le_bytes(*chunk));
-    }
+    let chunks = seed.as_chunks().0;
+    unroll!(i, [0, 1, 2, 3], {
+        state[i] = u64x4::splat(u64::from_le_bytes(chunks[i]));
+    });
 }
 
 /// 4-way parallel SHAKE-128 XOF reader.
@@ -33,9 +34,10 @@ impl Shake128x4Reader {
     pub fn squeeze_blocks(&mut self) -> [[u8; SHAKE128_RATE]; 4] {
         let mut outs = [[0u8; SHAKE128_RATE]; 4];
         for (i, state) in self.state.iter().enumerate().take(SHAKE128_RATE / 8) {
-            for (j, word) in state.to_array().map(u64::to_le_bytes).iter().enumerate() {
-                outs[j][i * 8..(i + 1) * 8].copy_from_slice(word);
-            }
+            let words = state.to_array().map(u64::to_le_bytes);
+            unroll!(j, [0, 1, 2, 3], {
+                outs[j][i * 8..(i + 1) * 8].copy_from_slice(&words[j]);
+            });
         }
         keccak::simd::f1600x4(&mut self.state);
         outs
@@ -52,11 +54,10 @@ pub fn xof_absorb_x4(seed: &[u8; SYMBYTES], indices: [(u8, u8); 4]) -> Shake128x
     let mut state = [u64x4::splat(0); PLEN];
     absorb_seed(&mut state, seed);
 
-    let mut w4 = [0u64; 4];
-    for (lane, &(x, y)) in indices.iter().enumerate() {
-        w4[lane] = u64::from(x) | (u64::from(y) << 8) | (u64::from(SHAKE_PAD) << 16);
-    }
-    state[4] = u64x4::from_array(w4);
+    state[4] = u64x4::from_array(unroll!(lane, [0, 1, 2, 3], {
+        let (x, y) = indices[lane];
+        u64::from(x) | (u64::from(y) << 8) | (u64::from(SHAKE_PAD) << 16)
+    }));
 
     // End-of-rate padding: byte 167 = word 20, byte offset 7.
     state[20] = u64x4::splat(0x80_u64 << 56);
@@ -78,11 +79,9 @@ pub fn prf_x4<Eta: CbdWidth>(seed: &[u8; SYMBYTES], nonces: [u8; 4]) -> [Eta::Bu
     let mut state = [u64x4::splat(0); PLEN];
     absorb_seed(&mut state, seed);
 
-    let mut w4 = [0u64; 4];
-    for (lane, &n) in nonces.iter().enumerate() {
-        w4[lane] = u64::from(n) | (u64::from(SHAKE_PAD) << 8);
-    }
-    state[4] = u64x4::from_array(w4);
+    state[4] = u64x4::from_array(unroll!(lane, [0, 1, 2, 3], {
+        u64::from(nonces[lane]) | (u64::from(SHAKE_PAD) << 8)
+    }));
 
     // End-of-rate padding: byte 135 = word 16, byte offset 7.
     state[16] = u64x4::splat(0x80_u64 << 56);
@@ -97,23 +96,17 @@ pub fn prf_x4<Eta: CbdWidth>(seed: &[u8; SYMBYTES], nonces: [u8; 4]) -> [Eta::Bu
 
         for (i, s) in state.iter().enumerate().take(full_words) {
             let off = written + i * 8;
-            for (output, lane) in outputs
-                .iter_mut()
-                .map(AsMut::as_mut)
-                .zip(s.to_array().map(u64::to_le_bytes))
-            {
-                output[off..off + 8].copy_from_slice(&lane);
-            }
+            let lanes = s.to_array().map(u64::to_le_bytes);
+            unroll!(j, [0, 1, 2, 3], {
+                outputs[j].as_mut()[off..off + 8].copy_from_slice(&lanes[j]);
+            });
         }
         if tail_bytes > 0 {
             let off = written + full_words * 8;
-            for (output, lane) in outputs
-                .iter_mut()
-                .map(AsMut::as_mut)
-                .zip(state[full_words].to_array().map(u64::to_le_bytes))
-            {
-                output[off..off + tail_bytes].copy_from_slice(&lane[..tail_bytes]);
-            }
+            let lanes = state[full_words].to_array().map(u64::to_le_bytes);
+            unroll!(j, [0, 1, 2, 3], {
+                outputs[j].as_mut()[off..off + tail_bytes].copy_from_slice(&lanes[j][..tail_bytes]);
+            });
         }
 
         written += chunk;

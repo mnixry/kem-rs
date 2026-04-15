@@ -6,7 +6,7 @@
 //! D4/D5/D10/D11 use Barrett reciprocal multiplication in SIMD to replace
 //! per-coefficient scalar u32 division by Q.
 
-use crate::{N, Q, SYMBYTES};
+use crate::{N, Q, SYMBYTES, unroll};
 
 mod sealed {
     pub trait Sealed {}
@@ -70,9 +70,9 @@ impl CompressWidth for D1 {
         let (chunks, _) = t.as_chunks::<8>();
         for (byte, chunk) in r.iter_mut().zip(chunks) {
             let mut b = 0u8;
-            for (&c, j) in chunk.iter().zip(0..8) {
-                b |= (c as u8) << j;
-            }
+            unroll!(j, [0, 1, 2, 3, 4, 5, 6, 7], {
+                b |= (chunk[j] as u8) << j;
+            });
             *byte = b;
         }
     }
@@ -80,10 +80,10 @@ impl CompressWidth for D1 {
     fn decompress_poly(r: &mut [i16; N], msg: &[u8]) {
         let (chunks, _) = r.as_chunks_mut::<8>();
         for (chunk, &byte) in chunks.iter_mut().zip(msg) {
-            for (b, j) in chunk.iter_mut().zip(0..8) {
+            *chunk = unroll!(j, [0, 1, 2, 3, 4, 5, 6, 7], {
                 let mask = -(((byte >> j) & 1) as i16);
-                *b = mask & ((Q + 1) / 2);
-            }
+                mask & ((Q + 1) / 2)
+            });
         }
     }
 }

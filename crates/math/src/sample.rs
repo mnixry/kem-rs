@@ -1,6 +1,6 @@
 //! Deterministic sampling: sealed CBD noise traits and rejection-uniform.
 
-use crate::{ByteArray, N, Q};
+use crate::{ByteArray, N, Q, unroll};
 
 mod sealed {
     pub trait Sealed {}
@@ -40,15 +40,16 @@ impl CbdWidth for Eta2 {
     #[inline]
     fn sample(r: &mut [i16; N], buf: &<Self as CbdWidthParams>::Buffer) {
         debug_assert!(buf.len() >= 2 * N / 4);
-        for i in 0..N / 8 {
-            let t =
-                u32::from_le_bytes([buf[4 * i], buf[4 * i + 1], buf[4 * i + 2], buf[4 * i + 3]]);
+        let (r_chunks, _) = r.as_chunks_mut();
+        let (buf_chunks, _) = buf.as_chunks();
+        for (chunk, &buf_chunk) in r_chunks.iter_mut().zip(buf_chunks) {
+            let t = u32::from_le_bytes(buf_chunk);
             let d = (t & 0x5555_5555) + ((t >> 1) & 0x5555_5555);
-            for j in 0..8 {
+            *chunk = unroll!(j, [0, 1, 2, 3, 4, 5, 6, 7], {
                 let a = ((d >> (4 * j)) & 3) as i16;
                 let b = ((d >> (4 * j + 2)) & 3) as i16;
-                r[8 * i + j] = a - b;
-            }
+                a - b
+            });
         }
     }
 }
@@ -57,15 +58,16 @@ impl CbdWidth for Eta3 {
     #[inline]
     fn sample(r: &mut [i16; N], buf: &<Self as CbdWidthParams>::Buffer) {
         debug_assert!(buf.len() >= 3 * N / 4);
-        for i in 0..N / 4 {
-            let t =
-                u32::from_le_bytes([buf[3 * i], buf[3 * i + 1], buf[3 * i + 2], 0]) & 0x00FF_FFFF;
+        let (r_chunks, _) = r.as_chunks_mut();
+        let (buf_chunks, _) = buf.as_chunks::<3>();
+        for (chunk, &[b0, b1, b2]) in r_chunks.iter_mut().zip(buf_chunks) {
+            let t = u32::from_le_bytes([b0, b1, b2, 0]) & 0x00FF_FFFF;
             let d = (t & 0x0024_9249) + ((t >> 1) & 0x0024_9249) + ((t >> 2) & 0x0024_9249);
-            for j in 0..4 {
+            *chunk = unroll!(j, [0, 1, 2, 3], {
                 let a = ((d >> (6 * j)) & 7) as i16;
                 let b = ((d >> (6 * j + 3)) & 7) as i16;
-                r[4 * i + j] = a - b;
-            }
+                a - b
+            });
         }
     }
 }
