@@ -73,7 +73,7 @@ pub trait ParameterSet: sealed::Sealed + 'static {
 
 macro_rules! impl_parameter_set {
     (
-        $name:ident, K = $K:literal,
+        $name:ident, K = $K:tt,
         Eta1 = $Eta1:ty, Eta2 = $Eta2:ty,
         Du = $Du:ty, Dv = $Dv:ty,
         PolyVecArray = $PolyVecArray:ty,
@@ -117,7 +117,9 @@ macro_rules! impl_parameter_set {
             type Matrix = NttMatrix<$K>;
 
             fn gen_matrix(seed: &[u8; SYMBYTES], transposed: bool) -> Self::Matrix {
-                gen_matrix_inner::<$K, { $K * $K }>(seed, transposed)
+                let mut a = NttMatrix::<$K>::zero();
+                gen_matrix_body!($K, seed, transposed, a);
+                a
             }
 
             fn sample_noise_eta1(seed: &[u8; SYMBYTES], nonce: &mut u8) -> Self::NttVec {
@@ -191,13 +193,13 @@ macro_rules! impl_parameter_set {
     };
 }
 
-fn gen_matrix_inner<const K: usize, const KK: usize>(
-    seed: &[u8; SYMBYTES], transposed: bool,
-) -> NttMatrix<K> {
-    let mut a = NttMatrix::<K>::zero();
-
-    let indices: [(u8, u8); KK] = core::array::from_fn(|idx| {
-        let (i, j) = (idx / K, idx % K);
+/// Absorb + rejection-sample `L` parallel XOF lanes into `a`, starting at
+/// linear matrix index `base`.
+fn rej_sample_xof<const L: usize, const K: usize>(
+    seed: &[u8; SYMBYTES], transposed: bool, base: usize, a: &mut NttMatrix<K>,
+) {
+    let indices: [(u8, u8); L] = core::array::from_fn(|k| {
+        let (i, j) = ((base + k) / K, (base + k) % K);
         if transposed {
             (i as u8, j as u8)
         } else {
@@ -206,12 +208,12 @@ fn gen_matrix_inner<const K: usize, const KK: usize>(
     });
 
     let mut reader = kem_hash::xof_absorb(seed, indices);
-    let mut coefficients = [[0i16; N]; KK];
-    let mut counters = [0usize; KK];
+    let mut coefficients = [[0i16; N]; L];
+    let mut counters = [0usize; L];
 
     while counters.iter().any(|&c| c < N) {
         let bufs = reader.squeeze_blocks();
-        for lane in 0..KK {
+        for lane in 0..L {
             for pos in (0..SHAKE128_RATE).step_by(3) {
                 if counters[lane] >= N {
                     break;
@@ -234,11 +236,27 @@ fn gen_matrix_inner<const K: usize, const KK: usize>(
         }
     }
 
-    for (idx, c) in coefficients.iter().enumerate() {
-        let (i, j) = (idx / K, idx % K);
+    for (k, c) in coefficients.iter().enumerate() {
+        let (i, j) = ((base + k) / K, (base + k) % K);
         *a.rows_mut()[i].polys_mut()[j].coeffs_mut() = *c;
     }
-    a
+}
+
+macro_rules! gen_matrix_body {
+    // K=2, KK=4: single f1600<4> batch
+    (2, $seed:expr, $trans:expr, $a:expr) => {
+        rej_sample_xof::<4, 2>($seed, $trans, 0, &mut $a);
+    };
+    // K=3, KK=9: f1600<8> for first 8, f1600<1> for the tail
+    (3, $seed:expr, $trans:expr, $a:expr) => {
+        rej_sample_xof::<8, 3>($seed, $trans, 0, &mut $a);
+        rej_sample_xof::<1, 3>($seed, $trans, 8, &mut $a);
+    };
+    // K=4, KK=16: two f1600<8> batches
+    (4, $seed:expr, $trans:expr, $a:expr) => {
+        rej_sample_xof::<8, 4>($seed, $trans, 0, &mut $a);
+        rej_sample_xof::<8, 4>($seed, $trans, 8, &mut $a);
+    };
 }
 
 fn sample_noise_ntt<Eta: CbdWidth, const K: usize>(

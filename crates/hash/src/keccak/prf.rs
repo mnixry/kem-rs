@@ -27,29 +27,21 @@ pub fn prf_batch<Eta: CbdWidth, const K: usize>(
 
     f1600(&mut state);
 
+    const { assert!(Eta::BUF_BYTES % 8 == 0) };
+
     let mut written = 0;
     while written < Eta::BUF_BYTES {
-        let chunk = (Eta::BUF_BYTES - written).min(SHAKE256_RATE);
-        let full_words = chunk / 8;
-        let tail_bytes = chunk % 8;
+        let words = (Eta::BUF_BYTES - written).min(SHAKE256_RATE) / 8;
 
-        for (i, s) in state.iter().enumerate().take(full_words) {
+        for (i, s) in state.iter().enumerate().take(words) {
             let off = written + i * 8;
             let lanes = s.to_array();
             for (j, val) in lanes.iter().enumerate() {
                 outputs[j].as_mut()[off..off + 8].copy_from_slice(&val.to_le_bytes());
             }
         }
-        if tail_bytes > 0 {
-            let off = written + full_words * 8;
-            let lanes = state[full_words].to_array();
-            for (j, val) in lanes.iter().enumerate() {
-                outputs[j].as_mut()[off..off + tail_bytes]
-                    .copy_from_slice(&val.to_le_bytes()[..tail_bytes]);
-            }
-        }
 
-        written += chunk;
+        written += words * 8;
         if written < Eta::BUF_BYTES {
             f1600(&mut state);
         }

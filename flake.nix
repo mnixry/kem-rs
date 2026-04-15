@@ -84,6 +84,7 @@
               lib.singleton rust
               ++ (with pkgs; [
                 llvmPackages.bolt
+                cargo-show-asm
                 cargo-flamegraph
                 cargo-edit
                 cargo-nextest
