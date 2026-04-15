@@ -7,8 +7,6 @@ version = "0.1.0"
 workspace = true
 
 [dependencies]
-keccak = { version = "0.1.6", features = ["simd"] }
-
 kem-math.workspace = true
 
 [dev-dependencies]

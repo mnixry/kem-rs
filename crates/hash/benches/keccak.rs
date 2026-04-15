@@ -1,7 +1,8 @@
 //! Keccak / SHA-3 benchmarks for perf profiling.
 //!
-//! Covers scalar hashes (`hash_g`, `hash_h`, `rkprf`) and the 4-way parallel
-//! SIMD paths (`xof_absorb_x4`, `squeeze_blocks`, `prf_x4`).
+//! Covers scalar hashes (`hash_g`, `hash_h`, `rkprf`) and the parallel
+//! SIMD paths (`xof_absorb`, `squeeze_blocks`, `prf_batch`) at various
+//! lane widths.
 
 use core::hint::black_box;
 
@@ -43,32 +44,34 @@ fn bench_xof(c: &mut kem_utils::CriterionConfig) {
     let mut g = c.benchmark_group("xof");
 
     let seed = [0x42u8; 32];
-    let indices = [(0, 0), (0, 1), (1, 0), (1, 1)];
 
-    g.bench_function("xof_absorb_x4", |b| {
-        b.iter(|| {
-            black_box(kem_hash::xof_absorb_x4(
-                black_box(&seed),
-                black_box(indices),
-            ))
-        });
+    g.bench_function("xof_absorb_4", |b| {
+        let indices = [(0, 0), (0, 1), (1, 0), (1, 1)];
+        b.iter(|| black_box(kem_hash::xof_absorb(black_box(&seed), black_box(indices))));
     });
 
-    g.bench_function("squeeze_blocks", |b| {
+    g.bench_function("squeeze_blocks_4", |b| {
+        let indices = [(0, 0), (0, 1), (1, 0), (1, 1)];
         b.iter_batched(
-            || kem_hash::xof_absorb_x4(&seed, indices),
+            || kem_hash::xof_absorb(&seed, indices),
             |mut reader| black_box(reader.squeeze_blocks()),
             kem_utils::criterion::BatchSize::SmallInput,
         );
     });
 
-    g.bench_function("absorb_then_3_squeezes", |b| {
+    g.bench_function("absorb_then_3_squeezes_4", |b| {
+        let indices = [(0, 0), (0, 1), (1, 0), (1, 1)];
         b.iter(|| {
-            let mut reader = kem_hash::xof_absorb_x4(black_box(&seed), black_box(indices));
+            let mut reader = kem_hash::xof_absorb(black_box(&seed), black_box(indices));
             black_box(reader.squeeze_blocks());
             black_box(reader.squeeze_blocks());
             black_box(reader.squeeze_blocks());
         });
+    });
+
+    g.bench_function("xof_absorb_2", |b| {
+        let indices = [(0, 0), (0, 1)];
+        b.iter(|| black_box(kem_hash::xof_absorb(black_box(&seed), black_box(indices))));
     });
 
     g.finish();
@@ -78,20 +81,41 @@ fn bench_prf(c: &mut kem_utils::CriterionConfig) {
     let mut g = c.benchmark_group("prf");
 
     let seed = [0x42u8; 32];
-    let nonces = [0u8, 1, 2, 3];
 
-    g.bench_function("prf_x4_eta2", |b| {
+    g.bench_function("prf_batch_4_eta2", |b| {
+        let nonces = [0u8, 1, 2, 3];
         b.iter(|| {
-            black_box(kem_hash::prf_x4::<Eta2>(
+            black_box(kem_hash::prf_batch::<Eta2, 4>(
                 black_box(&seed),
                 black_box(nonces),
             ))
         });
     });
 
-    g.bench_function("prf_x4_eta3", |b| {
+    g.bench_function("prf_batch_4_eta3", |b| {
+        let nonces = [0u8, 1, 2, 3];
         b.iter(|| {
-            black_box(kem_hash::prf_x4::<Eta3>(
+            black_box(kem_hash::prf_batch::<Eta3, 4>(
+                black_box(&seed),
+                black_box(nonces),
+            ))
+        });
+    });
+
+    g.bench_function("prf_batch_2_eta2", |b| {
+        let nonces = [0u8, 1];
+        b.iter(|| {
+            black_box(kem_hash::prf_batch::<Eta2, 2>(
+                black_box(&seed),
+                black_box(nonces),
+            ))
+        });
+    });
+
+    g.bench_function("prf_batch_3_eta2", |b| {
+        let nonces = [0u8, 1, 2];
+        b.iter(|| {
+            black_box(kem_hash::prf_batch::<Eta2, 3>(
                 black_box(&seed),
                 black_box(nonces),
             ))

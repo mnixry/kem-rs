@@ -117,7 +117,7 @@ macro_rules! impl_parameter_set {
             type Matrix = NttMatrix<$K>;
 
             fn gen_matrix(seed: &[u8; SYMBYTES], transposed: bool) -> Self::Matrix {
-                gen_matrix_inner::<$K>(seed, transposed)
+                gen_matrix_inner::<$K, { $K * $K }>(seed, transposed)
             }
 
             fn sample_noise_eta1(seed: &[u8; SYMBYTES], nonce: &mut u8) -> Self::NttVec {
@@ -191,58 +191,52 @@ macro_rules! impl_parameter_set {
     };
 }
 
-fn gen_matrix_inner<const K: usize>(seed: &[u8; SYMBYTES], transposed: bool) -> NttMatrix<K> {
+fn gen_matrix_inner<const K: usize, const KK: usize>(
+    seed: &[u8; SYMBYTES], transposed: bool,
+) -> NttMatrix<K> {
     let mut a = NttMatrix::<K>::zero();
 
-    let mut indices = [(0u8, 0u8); 16];
-    for i in 0..K {
-        for j in 0..K {
-            indices[i * K + j] = if transposed {
-                (i as u8, j as u8)
-            } else {
-                (j as u8, i as u8)
-            };
+    let indices: [(u8, u8); KK] = core::array::from_fn(|idx| {
+        let (i, j) = (idx / K, idx % K);
+        if transposed {
+            (i as u8, j as u8)
+        } else {
+            (j as u8, i as u8)
         }
-    }
+    });
 
-    let total = K * K;
-    for elem in (0..total).step_by(4) {
-        let live = (total - elem).min(4);
-        let batch = core::array::from_fn(|i| indices.get(elem + i).copied().unwrap_or((0, 0)));
+    let mut reader = kem_hash::xof_absorb(seed, indices);
+    let mut coefficients = [[0i16; N]; KK];
+    let mut counters = [0usize; KK];
 
-        let mut reader = kem_hash::xof_absorb_x4(seed, batch);
-        let mut coefficients = [[0i16; N]; 4];
-        let mut counters = [0usize; 4];
+    while counters.iter().any(|&c| c < N) {
+        let bufs = reader.squeeze_blocks();
+        for lane in 0..KK {
+            for pos in (0..SHAKE128_RATE).step_by(3) {
+                if counters[lane] >= N {
+                    break;
+                }
+                let val1 = u16::from_le_bytes([bufs[lane][pos], bufs[lane][pos + 1]]) & 0x0FFF;
+                if val1 < Q as u16 {
+                    coefficients[lane][counters[lane]] = val1.cast_signed();
+                    counters[lane] += 1;
+                }
 
-        while counters[..live].iter().any(|&c| c < N) {
-            let bufs = reader.squeeze_blocks();
-            for lane in 0..live {
-                for pos in (0..SHAKE128_RATE).step_by(3) {
-                    if counters[lane] >= N {
-                        break;
-                    }
-                    let val1 = u16::from_le_bytes([bufs[lane][pos], bufs[lane][pos + 1]]) & 0x0FFF;
-                    if val1 < Q as u16 {
-                        coefficients[lane][counters[lane]] = val1.cast_signed();
-                        counters[lane] += 1;
-                    }
-
-                    if counters[lane] >= N {
-                        break;
-                    }
-                    let val2 = u16::from_le_bytes([bufs[lane][pos + 1], bufs[lane][pos + 2]]) >> 4;
-                    if val2 < Q as u16 {
-                        coefficients[lane][counters[lane]] = val2.cast_signed();
-                        counters[lane] += 1;
-                    }
+                if counters[lane] >= N {
+                    break;
+                }
+                let val2 = u16::from_le_bytes([bufs[lane][pos + 1], bufs[lane][pos + 2]]) >> 4;
+                if val2 < Q as u16 {
+                    coefficients[lane][counters[lane]] = val2.cast_signed();
+                    counters[lane] += 1;
                 }
             }
         }
+    }
 
-        for (k, c) in coefficients.iter().enumerate().take(live) {
-            let (i, j) = ((elem + k) / K, (elem + k) % K);
-            *a.rows_mut()[i].polys_mut()[j].coeffs_mut() = *c;
-        }
+    for (idx, c) in coefficients.iter().enumerate() {
+        let (i, j) = (idx / K, idx % K);
+        *a.rows_mut()[i].polys_mut()[j].coeffs_mut() = *c;
     }
     a
 }
@@ -251,8 +245,8 @@ fn sample_noise_ntt<Eta: CbdWidth, const K: usize>(
     seed: &[u8; SYMBYTES], nonce: &mut u8,
 ) -> NttVector<K> {
     let mut v = NttVector::<K>::zero();
-    let nonces: [_; 4] = core::array::from_fn(|i| nonce.wrapping_add(i as u8));
-    let bufs = kem_hash::prf_x4::<Eta>(seed, nonces);
+    let nonces: [u8; K] = core::array::from_fn(|i| nonce.wrapping_add(i as u8));
+    let bufs = kem_hash::prf_batch::<Eta, K>(seed, nonces);
     for (i, p) in v.polys_mut().iter_mut().enumerate() {
         *p = Polynomial::sample_cbd::<Eta>(&bufs[i]).ntt();
     }
@@ -264,8 +258,8 @@ fn sample_noise_std<Eta: CbdWidth, const K: usize>(
     seed: &[u8; SYMBYTES], nonce: &mut u8,
 ) -> Vector<K> {
     let mut v = Vector::<K>::zero();
-    let nonces: [_; 4] = core::array::from_fn(|i| nonce.wrapping_add(i as u8));
-    let bufs = kem_hash::prf_x4::<Eta>(seed, nonces);
+    let nonces: [u8; K] = core::array::from_fn(|i| nonce.wrapping_add(i as u8));
+    let bufs = kem_hash::prf_batch::<Eta, K>(seed, nonces);
     for (i, p) in v.polys_mut().iter_mut().enumerate() {
         *p = Polynomial::sample_cbd::<Eta>(&bufs[i]);
     }

@@ -1,0 +1,59 @@
+//! SHAKE-256 PRF, generic over parallel lane count.
+
+use core::simd::Simd;
+
+use kem_math::{ByteArray, CbdWidth, SYMBYTES};
+
+use super::{PLEN, absorb_seed, f1600};
+use crate::{SHAKE_PAD, SHAKE256_RATE};
+
+/// `K`-way parallel SHAKE-256 PRF: absorb `seed || nonce` per lane and
+/// squeeze `Eta::BUF_BYTES` bytes from each.
+#[must_use]
+pub fn prf_batch<Eta: CbdWidth, const K: usize>(
+    seed: &[u8; SYMBYTES], nonces: [u8; K],
+) -> [Eta::Buffer; K] {
+    let mut outputs: [_; K] = core::array::from_fn(|_| Eta::Buffer::zeroed());
+
+    let mut state: [Simd<u64, K>; PLEN] = [Simd::splat(0); PLEN];
+    absorb_seed(&mut state, seed);
+
+    state[4] = Simd::from_array(core::array::from_fn(|lane| {
+        u64::from(nonces[lane]) | (u64::from(SHAKE_PAD) << 8)
+    }));
+
+    // End-of-rate padding: byte 135 = word 16, byte offset 7.
+    state[16] = Simd::splat(0x80_u64 << 56);
+
+    f1600(&mut state);
+
+    let mut written = 0;
+    while written < Eta::BUF_BYTES {
+        let chunk = (Eta::BUF_BYTES - written).min(SHAKE256_RATE);
+        let full_words = chunk / 8;
+        let tail_bytes = chunk % 8;
+
+        for (i, s) in state.iter().enumerate().take(full_words) {
+            let off = written + i * 8;
+            let lanes = s.to_array();
+            for (j, val) in lanes.iter().enumerate() {
+                outputs[j].as_mut()[off..off + 8].copy_from_slice(&val.to_le_bytes());
+            }
+        }
+        if tail_bytes > 0 {
+            let off = written + full_words * 8;
+            let lanes = state[full_words].to_array();
+            for (j, val) in lanes.iter().enumerate() {
+                outputs[j].as_mut()[off..off + tail_bytes]
+                    .copy_from_slice(&val.to_le_bytes()[..tail_bytes]);
+            }
+        }
+
+        written += chunk;
+        if written < Eta::BUF_BYTES {
+            f1600(&mut state);
+        }
+    }
+
+    outputs
+}

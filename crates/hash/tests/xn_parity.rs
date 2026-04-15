@@ -1,7 +1,7 @@
-//! Verify the 4-way parallel Keccak path produces lane outputs identical
-//! to the scalar SHAKE implementations.
+//! Verify the parallel Keccak paths produce lane outputs identical
+//! to the scalar SHAKE implementations, across all lane widths.
 
-use kem_hash::{SHAKE128_RATE, prf_x4, shake128, shake256, xof_absorb_x4};
+use kem_hash::{SHAKE128_RATE, prf_batch, shake128, shake256, xof_absorb};
 use kem_math::{CbdWidthParams, Eta2, Eta3, SYMBYTES};
 
 fn scalar_shake128_squeeze(seed: &[u8; SYMBYTES], x: u8, y: u8, n_blocks: usize) -> Vec<u8> {
@@ -24,20 +24,19 @@ fn scalar_prf_shake256(seed: &[u8; SYMBYTES], nonce: u8, out_len: usize) -> Vec<
 }
 
 #[test]
-fn xof_absorb_x4_matches_scalar_shake128() {
+fn xof_4_lanes_matches_scalar() {
     let seed: [u8; SYMBYTES] = core::array::from_fn(|i| (i as u8).wrapping_mul(0x37));
     let indices = [(0, 0), (0, 1), (1, 0), (1, 1)];
 
-    let mut reader = xof_absorb_x4(&seed, indices);
+    let mut reader = xof_absorb(&seed, indices);
 
     let n_squeezes = 4;
     let total_bytes = n_squeezes * SHAKE128_RATE;
-
-    let mut x4_outputs: [Vec<u8>; 4] = core::array::from_fn(|_| Vec::with_capacity(total_bytes));
+    let mut outputs: [Vec<u8>; 4] = core::array::from_fn(|_| Vec::with_capacity(total_bytes));
 
     for _ in 0..n_squeezes {
         let blocks = reader.squeeze_blocks();
-        for (lane, block) in x4_outputs.iter_mut().zip(blocks.iter()) {
+        for (lane, block) in outputs.iter_mut().zip(blocks.iter()) {
             lane.extend_from_slice(block);
         }
     }
@@ -45,19 +44,37 @@ fn xof_absorb_x4_matches_scalar_shake128() {
     for (lane_idx, &(x, y)) in indices.iter().enumerate() {
         let expected = scalar_shake128_squeeze(&seed, x, y, n_squeezes);
         assert_eq!(
-            x4_outputs[lane_idx], expected,
-            "xof lane {lane_idx} (x={x}, y={y}) diverges from scalar SHAKE-128"
+            outputs[lane_idx], expected,
+            "xof<4> lane {lane_idx} (x={x}, y={y}) diverges from scalar SHAKE-128"
         );
     }
 }
 
 #[test]
-fn xof_absorb_x4_various_seeds() {
+fn xof_2_lanes_matches_scalar() {
+    let seed: [u8; SYMBYTES] = core::array::from_fn(|i| (i as u8).wrapping_mul(0x37));
+    let indices = [(0, 0), (1, 1)];
+
+    let mut reader = xof_absorb(&seed, indices);
+    let blocks = reader.squeeze_blocks();
+
+    for (lane_idx, &(x, y)) in indices.iter().enumerate() {
+        let expected = scalar_shake128_squeeze(&seed, x, y, 1);
+        assert_eq!(
+            &blocks[lane_idx][..],
+            &expected[..SHAKE128_RATE],
+            "xof<2> lane {lane_idx} mismatch"
+        );
+    }
+}
+
+#[test]
+fn xof_various_seeds() {
     for tag in 0..16u8 {
         let seed: [u8; SYMBYTES] = core::array::from_fn(|i| (i as u8).wrapping_add(tag * 17));
         let indices = [(tag, 0), (0, tag), (tag, tag), (0, 0)];
 
-        let mut reader = xof_absorb_x4(&seed, indices);
+        let mut reader = xof_absorb(&seed, indices);
         let blocks = reader.squeeze_blocks();
 
         for (lane_idx, &(x, y)) in indices.iter().enumerate() {
@@ -72,39 +89,71 @@ fn xof_absorb_x4_various_seeds() {
 }
 
 #[test]
-fn prf_x4_eta2_matches_scalar_shake256() {
+fn prf_4_lanes_eta2_matches_scalar() {
     let seed: [u8; SYMBYTES] = core::array::from_fn(|i| (i as u8).wrapping_mul(0x53));
     let nonces = [0u8, 1, 2, 3];
-    let results = prf_x4::<Eta2>(&seed, nonces);
+    let results = prf_batch::<Eta2, 4>(&seed, nonces);
 
     for (lane, &nonce) in nonces.iter().enumerate() {
         let expected = scalar_prf_shake256(&seed, nonce, Eta2::BUF_BYTES);
         assert_eq!(
             results[lane].as_ref(),
             &expected[..],
-            "prf_x4<Eta2> lane {lane} (nonce={nonce}) mismatch"
+            "prf_batch<Eta2, 4> lane {lane} (nonce={nonce}) mismatch"
         );
     }
 }
 
 #[test]
-fn prf_x4_eta3_matches_scalar_shake256() {
+fn prf_4_lanes_eta3_matches_scalar() {
     let seed: [u8; SYMBYTES] = core::array::from_fn(|i| (i as u8).wrapping_mul(0x71));
     let nonces = [10u8, 20, 30, 40];
-    let results = prf_x4::<Eta3>(&seed, nonces);
+    let results = prf_batch::<Eta3, 4>(&seed, nonces);
 
     for (lane, &nonce) in nonces.iter().enumerate() {
         let expected = scalar_prf_shake256(&seed, nonce, Eta3::BUF_BYTES);
         assert_eq!(
             results[lane].as_ref(),
             &expected[..],
-            "prf_x4<Eta3> lane {lane} (nonce={nonce}) mismatch"
+            "prf_batch<Eta3, 4> lane {lane} (nonce={nonce}) mismatch"
         );
     }
 }
 
 #[test]
-fn prf_x4_various_seeds() {
+fn prf_2_lanes_eta2_matches_scalar() {
+    let seed: [u8; SYMBYTES] = core::array::from_fn(|i| (i as u8).wrapping_mul(0x53));
+    let nonces = [0u8, 1];
+    let results = prf_batch::<Eta2, 2>(&seed, nonces);
+
+    for (lane, &nonce) in nonces.iter().enumerate() {
+        let expected = scalar_prf_shake256(&seed, nonce, Eta2::BUF_BYTES);
+        assert_eq!(
+            results[lane].as_ref(),
+            &expected[..],
+            "prf_batch<Eta2, 2> lane {lane} (nonce={nonce}) mismatch"
+        );
+    }
+}
+
+#[test]
+fn prf_3_lanes_eta2_matches_scalar() {
+    let seed: [u8; SYMBYTES] = core::array::from_fn(|i| (i as u8).wrapping_mul(0x53));
+    let nonces = [0u8, 1, 2];
+    let results = prf_batch::<Eta2, 3>(&seed, nonces);
+
+    for (lane, &nonce) in nonces.iter().enumerate() {
+        let expected = scalar_prf_shake256(&seed, nonce, Eta2::BUF_BYTES);
+        assert_eq!(
+            results[lane].as_ref(),
+            &expected[..],
+            "prf_batch<Eta2, 3> lane {lane} (nonce={nonce}) mismatch"
+        );
+    }
+}
+
+#[test]
+fn prf_various_seeds_4_lanes() {
     for tag in 0..16u8 {
         let seed: [u8; SYMBYTES] =
             core::array::from_fn(|i| (i as u8).wrapping_add(tag.wrapping_mul(41)));
@@ -115,13 +164,13 @@ fn prf_x4_various_seeds() {
             tag.wrapping_add(3),
         ];
 
-        let results = prf_x4::<Eta2>(&seed, nonces);
+        let results = prf_batch::<Eta2, 4>(&seed, nonces);
         for (lane, &nonce) in nonces.iter().enumerate() {
             let expected = scalar_prf_shake256(&seed, nonce, Eta2::BUF_BYTES);
             assert_eq!(
                 results[lane].as_ref(),
                 &expected[..],
-                "prf_x4 tag={tag} lane {lane} mismatch"
+                "prf_batch tag={tag} lane {lane} mismatch"
             );
         }
     }

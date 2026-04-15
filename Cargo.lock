@@ -716,7 +716,6 @@ name = "kem-hash"
 version = "0.1.0"
 dependencies = [
  "hex",
- "keccak",
  "kem-math",
  "kem-utils",
  "serde",

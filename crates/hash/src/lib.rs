@@ -1,15 +1,14 @@
 //! SIMD-accelerated Keccak/SHA-3 primitives for ML-KEM.
 //!
-//! All XOF and PRF sampling uses the 4-way parallel path
-//! (`keccak::simd::f1600x4`). Scalar sponge is only used for fixed-output
-//! hashes (`hash_h`, `hash_g`, `rkprf`) that have variable-length inputs and no
-//! natural batching.
+//! Every hash primitive — scalar fixed-output (H, G, J), parallel XOF, and
+//! parallel PRF — shares a single lane-count-generic Keccak-f[1600]
+//! permutation. The lane count is 1 for scalar, K for PRF, and K*K for
+//! XOF matrix sampling.
 
 #![no_std]
 #![feature(portable_simd)]
 
-mod keccak1x;
-mod keccak4x;
+mod keccak;
 
 pub const SHAKE128_RATE: usize = 168;
 pub const SHAKE256_RATE: usize = 136;
@@ -19,13 +18,20 @@ pub const SHA3_512_RATE: usize = 72;
 const SHAKE_PAD: u8 = 0x1F;
 const SHA3_PAD: u8 = 0x06;
 
-pub use keccak1x::{hash_g, hash_h, rkprf, shake128, shake256};
-pub use keccak4x::{Shake128x4Reader, prf_x4, xof_absorb_x4};
-use kem_math::{CbdWidth, SYMBYTES};
+pub use keccak::{
+    prf::prf_batch,
+    scalar::{hash_g, hash_h, rkprf, shake128, shake256},
+    xof::{Shake128Reader, xof_absorb},
+};
+use kem_math::{ByteArray, CbdWidth, SYMBYTES};
 
-/// Single-lane SHAKE-256 PRF via `prf_x4` with 3 dummy lanes.
+/// Single-lane SHAKE-256 PRF via scalar sponge.
 #[must_use]
 pub fn prf<Eta: CbdWidth>(seed: &[u8; SYMBYTES], nonce: u8) -> Eta::Buffer {
-    let [result, ..] = prf_x4::<Eta>(seed, [nonce, 0, 0, 0]);
-    result
+    let mut input = [0u8; SYMBYTES + 1];
+    input[..SYMBYTES].copy_from_slice(seed);
+    input[SYMBYTES] = nonce;
+    let mut buf = Eta::Buffer::zeroed();
+    keccak::scalar::shake256(input, buf.as_mut());
+    buf
 }
