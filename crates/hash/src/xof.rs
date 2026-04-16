@@ -4,7 +4,7 @@ use core::simd::Simd;
 
 use kem_math::SYMBYTES;
 
-use super::{PLEN, absorb_seed, f1600};
+use super::keccak::{PLEN, absorb_seed, f1600};
 use crate::{SHAKE_PAD, SHAKE128_RATE};
 
 /// Parallel SHAKE-128 XOF reader over `L` lanes.

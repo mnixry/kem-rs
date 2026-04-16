@@ -19,7 +19,7 @@ pub fn keypair_derand<P: ParameterSet>(coins: &[u8; 2 * SYMBYTES]) -> (PublicKey
 
     let (pk, indcpa_sk) = pke::indcpa_keypair_derand::<P>(d);
 
-    let h = kem_hash::hash_h(pk.as_ref());
+    let h = kem_hash::scalar::hash_h(pk.as_ref());
 
     let sk = SecretKey {
         indcpa_sk,
@@ -46,10 +46,10 @@ pub fn encapsulate_derand<P: ParameterSet>(
 ) -> (Ciphertext<P>, SharedSecret) {
     let mut buf = [0u8; 2 * SYMBYTES];
     buf[..SYMBYTES].copy_from_slice(coins);
-    let h_pk = kem_hash::hash_h(pk.as_ref());
+    let h_pk = kem_hash::scalar::hash_h(pk.as_ref());
     buf[SYMBYTES..].copy_from_slice(&h_pk);
 
-    let kr = kem_hash::hash_g(buf);
+    let kr = kem_hash::scalar::hash_g(buf);
     let Sym2(k, r) = transmute_ref!(&kr);
 
     let ct = pke::indcpa_enc::<P>(pk, coins, r);
@@ -76,13 +76,13 @@ pub fn decapsulate<P: ParameterSet>(ct: &Ciphertext<P>, sk: &SecretKey<P>) -> Sh
     let mut buf = [0u8; 2 * SYMBYTES];
     buf[..SYMBYTES].copy_from_slice(&m_prime);
     buf[SYMBYTES..].copy_from_slice(&sk.h);
-    let kr = kem_hash::hash_g(buf);
+    let kr = kem_hash::scalar::hash_g(buf);
     let Sym2(k, r) = transmute_ref!(&kr);
 
     let ct_prime = pke::indcpa_enc::<P>(&pk, &m_prime, r);
 
     let ok = ct.as_ref().ct_eq(ct_prime.as_ref());
-    let rejection = kem_hash::rkprf(sk.z, ct.as_ref());
+    let rejection = kem_hash::scalar::rkprf(sk.z, ct.as_ref());
 
     let mut ss = [0u8; SSBYTES];
     ss.copy_from_slice(k);

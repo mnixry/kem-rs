@@ -16,11 +16,11 @@ fn bench_scalar_hash(c: &mut kem_utils::CriterionConfig) {
     let input_64 = [0x42u8; 64];
 
     g.bench_function("hash_h", |b| {
-        b.iter(|| black_box(kem_hash::hash_h(black_box(&input_32))));
+        b.iter(|| black_box(kem_hash::scalar::hash_h(black_box(&input_32))));
     });
 
     g.bench_function("hash_g", |b| {
-        b.iter(|| black_box(kem_hash::hash_g(black_box(&input_64))));
+        b.iter(|| black_box(kem_hash::scalar::hash_g(black_box(&input_64))));
     });
 
     g.finish();
@@ -33,7 +33,12 @@ fn bench_rkprf(c: &mut kem_utils::CriterionConfig) {
     for &ct_len in &[768usize, 1088, 1568] {
         let ct = vec![0xABu8; ct_len];
         g.bench_function(BenchmarkId::from_parameter(ct_len), |b| {
-            b.iter(|| black_box(kem_hash::rkprf(black_box(&key), black_box(ct.as_slice()))));
+            b.iter(|| {
+                black_box(kem_hash::scalar::rkprf(
+                    black_box(&key),
+                    black_box(ct.as_slice()),
+                ))
+            });
         });
     }
 
@@ -47,13 +52,18 @@ fn bench_xof(c: &mut kem_utils::CriterionConfig) {
 
     g.bench_function("xof_absorb_4", |b| {
         let indices = [(0, 0), (0, 1), (1, 0), (1, 1)];
-        b.iter(|| black_box(kem_hash::xof_absorb(black_box(&seed), black_box(indices))));
+        b.iter(|| {
+            black_box(kem_hash::xof::xof_absorb(
+                black_box(&seed),
+                black_box(indices),
+            ))
+        });
     });
 
     g.bench_function("squeeze_blocks_4", |b| {
         let indices = [(0, 0), (0, 1), (1, 0), (1, 1)];
         b.iter_batched(
-            || kem_hash::xof_absorb(&seed, indices),
+            || kem_hash::xof::xof_absorb(&seed, indices),
             |mut reader| black_box(reader.squeeze_blocks()),
             kem_utils::criterion::BatchSize::SmallInput,
         );
@@ -62,7 +72,7 @@ fn bench_xof(c: &mut kem_utils::CriterionConfig) {
     g.bench_function("absorb_then_3_squeezes_4", |b| {
         let indices = [(0, 0), (0, 1), (1, 0), (1, 1)];
         b.iter(|| {
-            let mut reader = kem_hash::xof_absorb(black_box(&seed), black_box(indices));
+            let mut reader = kem_hash::xof::xof_absorb(black_box(&seed), black_box(indices));
             black_box(reader.squeeze_blocks());
             black_box(reader.squeeze_blocks());
             black_box(reader.squeeze_blocks());
@@ -71,7 +81,12 @@ fn bench_xof(c: &mut kem_utils::CriterionConfig) {
 
     g.bench_function("xof_absorb_2", |b| {
         let indices = [(0, 0), (0, 1)];
-        b.iter(|| black_box(kem_hash::xof_absorb(black_box(&seed), black_box(indices))));
+        b.iter(|| {
+            black_box(kem_hash::xof::xof_absorb(
+                black_box(&seed),
+                black_box(indices),
+            ))
+        });
     });
 
     g.finish();
@@ -85,7 +100,7 @@ fn bench_prf(c: &mut kem_utils::CriterionConfig) {
     g.bench_function("prf_batch_4_eta2", |b| {
         let nonces = [0u8, 1, 2, 3];
         b.iter(|| {
-            black_box(kem_hash::prf_batch::<Eta2, 4>(
+            black_box(kem_hash::prf::prf_batch::<Eta2, 4>(
                 black_box(&seed),
                 black_box(nonces),
             ))
@@ -95,7 +110,7 @@ fn bench_prf(c: &mut kem_utils::CriterionConfig) {
     g.bench_function("prf_batch_4_eta3", |b| {
         let nonces = [0u8, 1, 2, 3];
         b.iter(|| {
-            black_box(kem_hash::prf_batch::<Eta3, 4>(
+            black_box(kem_hash::prf::prf_batch::<Eta3, 4>(
                 black_box(&seed),
                 black_box(nonces),
             ))
@@ -105,7 +120,7 @@ fn bench_prf(c: &mut kem_utils::CriterionConfig) {
     g.bench_function("prf_batch_2_eta2", |b| {
         let nonces = [0u8, 1];
         b.iter(|| {
-            black_box(kem_hash::prf_batch::<Eta2, 2>(
+            black_box(kem_hash::prf::prf_batch::<Eta2, 2>(
                 black_box(&seed),
                 black_box(nonces),
             ))
@@ -115,7 +130,7 @@ fn bench_prf(c: &mut kem_utils::CriterionConfig) {
     g.bench_function("prf_batch_3_eta2", |b| {
         let nonces = [0u8, 1, 2];
         b.iter(|| {
-            black_box(kem_hash::prf_batch::<Eta2, 3>(
+            black_box(kem_hash::prf::prf_batch::<Eta2, 3>(
                 black_box(&seed),
                 black_box(nonces),
             ))

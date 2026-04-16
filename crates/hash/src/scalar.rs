@@ -2,7 +2,7 @@
 
 use core::simd::Simd;
 
-use super::{PLEN, f1600};
+use super::keccak::{PLEN, f1600};
 use crate::{SHA3_256_RATE, SHA3_512_RATE, SHA3_PAD, SHAKE_PAD, SHAKE256_RATE};
 
 type Lane = Simd<u64, 1>;
@@ -16,6 +16,7 @@ fn absorb_block<const R: usize>(state: &mut [Lane; PLEN], block: &[u8; R]) {
     f1600(state);
 }
 
+#[inline]
 fn absorb_padded<const R: usize>(state: &mut [Lane; PLEN], input: &[u8], pad: u8) {
     let (blocks, remainder) = input.as_chunks::<R>();
     for block in blocks {
@@ -51,6 +52,7 @@ fn consume<const R: usize>(
     }
 }
 
+#[inline]
 fn squeeze_into<const R: usize>(state: &mut [Lane; PLEN], output: &mut [u8]) {
     let mut offset = 0;
     while offset < output.len() {
@@ -69,6 +71,7 @@ fn squeeze_into<const R: usize>(state: &mut [Lane; PLEN], output: &mut [u8]) {
     }
 }
 
+#[inline]
 fn sponge<const R: usize>(pad: u8, input: &[u8], output: &mut [u8]) {
     let mut state = [Lane::splat(0); PLEN];
     absorb_padded::<R>(&mut state, input, pad);

@@ -207,7 +207,7 @@ fn rej_sample_xof<const L: usize, const K: usize>(
         }
     });
 
-    let mut reader = kem_hash::xof_absorb(seed, indices);
+    let mut reader = kem_hash::xof::xof_absorb(seed, indices);
     let mut coefficients = [[0i16; N]; L];
     let mut counters = [0usize; L];
 
@@ -264,7 +264,7 @@ fn sample_noise_ntt<Eta: CbdWidth, const K: usize>(
 ) -> NttVector<K> {
     let mut v = NttVector::<K>::zero();
     let nonces: [u8; K] = core::array::from_fn(|i| nonce.wrapping_add(i as u8));
-    let bufs = kem_hash::prf_batch::<Eta, K>(seed, nonces);
+    let bufs = kem_hash::prf::prf_batch::<Eta, K>(seed, nonces);
     for (i, p) in v.polys_mut().iter_mut().enumerate() {
         *p = Polynomial::sample_cbd::<Eta>(&bufs[i]).ntt();
     }
@@ -277,7 +277,7 @@ fn sample_noise_std<Eta: CbdWidth, const K: usize>(
 ) -> Vector<K> {
     let mut v = Vector::<K>::zero();
     let nonces: [u8; K] = core::array::from_fn(|i| nonce.wrapping_add(i as u8));
-    let bufs = kem_hash::prf_batch::<Eta, K>(seed, nonces);
+    let bufs = kem_hash::prf::prf_batch::<Eta, K>(seed, nonces);
     for (i, p) in v.polys_mut().iter_mut().enumerate() {
         *p = Polynomial::sample_cbd::<Eta>(&bufs[i]);
     }

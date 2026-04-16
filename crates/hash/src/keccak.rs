@@ -4,13 +4,11 @@
 //! and parallel PRF — share this single permutation, instantiated at
 //! different lane counts: 1 for scalar, K for PRF, K*K for XOF.
 
-pub mod prf;
-pub mod scalar;
-pub mod xof;
-
 use core::simd::Simd;
 
-const PLEN: usize = 25;
+use kem_math::unroll;
+
+pub const PLEN: usize = 25;
 
 const RHO: [u32; 24] = [
     1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 2, 14, 27, 41, 56, 8, 25, 43, 62, 18, 39, 61, 20, 44,
@@ -47,12 +45,12 @@ const RC: [u64; 24] = [
     0x8000_0000_8000_8008,
 ];
 
-macro_rules! unroll {
+macro_rules! unroll_n {
     (5, $var:ident, $body:expr) => {
-        kem_math::unroll!($var, [0, 1, 2, 3, 4], $body);
+        unroll!($var, [0, 1, 2, 3, 4], $body);
     };
     (24, $var:ident, $body:expr) => {
-        kem_math::unroll!(
+        unroll!(
             $var,
             [
                 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
@@ -76,32 +74,32 @@ pub fn f1600<const L: usize>(state: &mut [Simd<u64, L>; PLEN]) {
         let mut array = [Simd::splat(0u64); 5];
 
         // Theta
-        unroll!(5, x, {
-            unroll!(5, y, {
+        unroll_n!(5, x, {
+            unroll_n!(5, y, {
                 array[x] ^= state[5 * y + x];
             });
         });
-        unroll!(5, x, {
+        unroll_n!(5, x, {
             let t1 = array[(x + 4) % 5];
             let t2 = rotl!(array[(x + 1) % 5], 1);
-            unroll!(5, y, {
+            unroll_n!(5, y, {
                 state[5 * y + x] ^= t1 ^ t2;
             });
         });
 
         // Rho and Pi
         let mut last = state[1];
-        unroll!(24, i, {
+        unroll_n!(24, i, {
             array[0] = state[PI[i]];
             state[PI[i]] = rotl!(last, RHO[i]);
             last = array[0];
         });
 
         // Chi
-        unroll!(5, y_step, {
+        unroll_n!(5, y_step, {
             let y = 5 * y_step;
             array.copy_from_slice(&state[y..y + 5]);
-            unroll!(5, x, {
+            unroll_n!(5, x, {
                 state[y + x] = array[x] ^ (!array[(x + 1) % 5] & array[(x + 2) % 5]);
             });
         });
@@ -112,8 +110,10 @@ pub fn f1600<const L: usize>(state: &mut [Simd<u64, L>; PLEN]) {
 }
 
 /// Splat a 32-byte seed into the first 4 words of all lanes.
+#[inline]
 pub fn absorb_seed<const L: usize>(state: &mut [Simd<u64, L>; PLEN], seed: &[u8; 32]) {
-    for (s, &c) in state.iter_mut().zip(seed.as_chunks::<8>().0) {
-        *s = Simd::splat(u64::from_le_bytes(c));
-    }
+    let (chunks, _) = seed.as_chunks();
+    unroll!(i, [0, 1, 2, 3], {
+        state[i] = Simd::splat(u64::from_le_bytes(chunks[i]));
+    });
 }

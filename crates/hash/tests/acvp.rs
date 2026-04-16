@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use kem_hash::{hash_g, hash_h, shake128, shake256};
+use kem_hash::scalar::{hash_g, hash_h, shake128, shake256};
 use serde::{Deserialize, de};
 
 const SHA3_256_PROMPT: &[u8] = include_bytes!("data/acvp/SHA3-256/prompt.json");

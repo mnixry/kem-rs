@@ -1,7 +1,12 @@
 //! Verify the parallel Keccak paths produce lane outputs identical
 //! to the scalar SHAKE implementations, across all lane widths.
 
-use kem_hash::{SHAKE128_RATE, prf_batch, shake128, shake256, xof_absorb};
+use kem_hash::{
+    SHAKE128_RATE,
+    prf::prf_batch,
+    scalar::{shake128, shake256},
+    xof::xof_absorb,
+};
 use kem_math::{CbdWidthParams, Eta2, Eta3, SYMBYTES};
 
 fn scalar_shake128_squeeze(seed: &[u8; SYMBYTES], x: u8, y: u8, n_blocks: usize) -> Vec<u8> {

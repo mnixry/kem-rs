@@ -4,8 +4,10 @@ use core::simd::Simd;
 
 use kem_math::{ByteArray, CbdWidth, SYMBYTES};
 
-use super::{PLEN, absorb_seed, f1600};
-use crate::{SHAKE_PAD, SHAKE256_RATE};
+use crate::{
+    SHAKE_PAD, SHAKE256_RATE,
+    keccak::{PLEN, absorb_seed, f1600},
+};
 
 /// `K`-way parallel SHAKE-256 PRF: absorb `seed || nonce` per lane and
 /// squeeze `Eta::BUF_BYTES` bytes from each.

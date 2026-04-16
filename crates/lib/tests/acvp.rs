@@ -3,7 +3,7 @@ mod common;
 use std::collections::HashMap;
 
 use common::{HexArray, HexBytes, parse_json};
-use kem_hash::hash_h;
+use kem_hash::scalar::hash_h;
 use kem_rs::{
     Ciphertext, MlKem512, MlKem768, MlKem1024, ParameterSet, PublicKey, SecretKey, decapsulate,
     encapsulate_derand, keypair_derand,

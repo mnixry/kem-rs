@@ -132,7 +132,7 @@ impl<P: ParameterSet> TryInto<SecretKey<P>> for &[u8] {
             })?;
 
         let pk_ref = sk.pk();
-        let h_computed = kem_hash::hash_h(pk_ref.as_ref());
+        let h_computed = kem_hash::scalar::hash_h(pk_ref);
         if h_computed != sk.h {
             return Err(Error::InvalidKey);
         }

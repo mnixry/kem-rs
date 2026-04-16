@@ -21,7 +21,7 @@ pub(crate) fn indcpa_keypair_derand<P: ParameterSet>(
     let mut g_input = [0u8; SYMBYTES + 1];
     g_input[..SYMBYTES].copy_from_slice(coins);
     g_input[SYMBYTES] = P::K as u8;
-    let buf = kem_hash::hash_g(g_input);
+    let buf = kem_hash::scalar::hash_g(g_input);
     let Sym2(public_seed, noise_seed) = transmute_ref!(&buf);
 
     let a_hat = P::gen_matrix(public_seed, false);

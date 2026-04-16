@@ -9,6 +9,9 @@
 #![feature(portable_simd)]
 
 mod keccak;
+pub mod prf;
+pub mod scalar;
+pub mod xof;
 
 pub const SHAKE128_RATE: usize = 168;
 pub const SHAKE256_RATE: usize = 136;
@@ -18,11 +21,6 @@ pub const SHA3_512_RATE: usize = 72;
 const SHAKE_PAD: u8 = 0x1F;
 const SHA3_PAD: u8 = 0x06;
 
-pub use keccak::{
-    prf::prf_batch,
-    scalar::{hash_g, hash_h, rkprf, shake128, shake256},
-    xof::{Shake128Reader, xof_absorb},
-};
 use kem_math::{ByteArray, CbdWidth, SYMBYTES};
 
 /// Single-lane SHAKE-256 PRF via scalar sponge.
@@ -32,6 +30,6 @@ pub fn prf<Eta: CbdWidth>(seed: &[u8; SYMBYTES], nonce: u8) -> Eta::Buffer {
     input[..SYMBYTES].copy_from_slice(seed);
     input[SYMBYTES] = nonce;
     let mut buf = Eta::Buffer::zeroed();
-    keccak::scalar::shake256(input, buf.as_mut());
+    scalar::shake256(input, buf.as_mut());
     buf
 }
