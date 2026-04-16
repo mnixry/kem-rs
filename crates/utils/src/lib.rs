@@ -10,6 +10,13 @@ pub type CriterionConfig = Criterion<measure::CPUTime>;
 
 #[must_use]
 pub fn criterion_config() -> CriterionConfig {
+    if let Some(core_ids) = core_affinity::get_core_ids()
+        && let Some(first_core) = core_ids.first()
+        && core_affinity::set_for_current(*first_core)
+    {
+        eprintln!("Benchmark has been pinned to core {}", first_core.id);
+    }
+
     criterion::Criterion::default()
         .with_profiler(profiler::PProfProfiler::new(1997))
         .with_measurement(measure::CPUTime)
