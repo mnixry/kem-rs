@@ -39,6 +39,29 @@ macro_rules! dispatch_binding_function {
     };
 }
 
+macro_rules! dispatch_binding_e2e {
+    ($mod:ident, $ps:ty, $full:expr, $m:expr) => {
+        match std::any::TypeId::of::<$ps>() {
+            id if id == std::any::TypeId::of::<kem_rs::MlKem512>() => {
+                let (pk, sk) = $mod::mlkem512::keypair_derand(black_box($full)).unwrap();
+                let (ct, _) = $mod::mlkem512::enc_derand(black_box(&pk), black_box($m)).unwrap();
+                black_box($mod::mlkem512::dec(black_box(&ct), black_box(&sk)).unwrap());
+            }
+            id if id == std::any::TypeId::of::<kem_rs::MlKem768>() => {
+                let (pk, sk) = $mod::mlkem768::keypair_derand(black_box($full)).unwrap();
+                let (ct, _) = $mod::mlkem768::enc_derand(black_box(&pk), black_box($m)).unwrap();
+                black_box($mod::mlkem768::dec(black_box(&ct), black_box(&sk)).unwrap());
+            }
+            id if id == std::any::TypeId::of::<kem_rs::MlKem1024>() => {
+                let (pk, sk) = $mod::mlkem1024::keypair_derand(black_box($full)).unwrap();
+                let (ct, _) = $mod::mlkem1024::enc_derand(black_box(&pk), black_box($m)).unwrap();
+                black_box($mod::mlkem1024::dec(black_box(&ct), black_box(&sk)).unwrap());
+            }
+            _ => unreachable!(),
+        }
+    };
+}
+
 #[allow(
     clippy::many_single_char_names,
     clippy::similar_names,
@@ -147,17 +170,25 @@ fn bench_param_set<P: kem_rs::ParameterSet, RC: KemCore>(
         });
     });
 
-    g.bench_function(BenchmarkId::new("roundtrip", "kem-rs"), |b| {
+    g.bench_function(BenchmarkId::new("e2e", "kem-rs"), |b| {
         b.iter(|| {
-            let (ct, _ss_enc) = kem_rs::encapsulate_derand::<P>(black_box(&our_pk), black_box(&m));
-            black_box(kem_rs::decapsulate::<P>(black_box(&ct), black_box(&our_sk)));
+            let (pk, sk) = kem_rs::keypair_derand::<P>(black_box(&full));
+            let (ct, _ss_enc) = kem_rs::encapsulate_derand::<P>(black_box(&pk), black_box(&m));
+            black_box(kem_rs::decapsulate::<P>(black_box(&ct), black_box(&sk)));
         });
     });
-    g.bench_function(BenchmarkId::new("roundtrip", "rustcrypto"), |b| {
+    g.bench_function(BenchmarkId::new("e2e", "rustcrypto"), |b| {
         b.iter(|| {
-            let (ct, _ss_enc) = rc_ek.encapsulate_deterministic(black_box(&m_b)).unwrap();
-            black_box(rc_dk.decapsulate(black_box(&ct)).unwrap());
+            let (dk, ek) = RC::generate_deterministic(black_box(&d_b), black_box(&z_b));
+            let (ct, _ss_enc) = ek.encapsulate_deterministic(black_box(&m_b)).unwrap();
+            black_box(dk.decapsulate(black_box(&ct)).unwrap());
         });
+    });
+    g.bench_function(BenchmarkId::new("e2e", "mlkem-native"), |b| {
+        b.iter(|| dispatch_binding_e2e!(mlkem_native_rs, P, &full, &m));
+    });
+    g.bench_function(BenchmarkId::new("e2e", "pqmagic"), |b| {
+        b.iter(|| dispatch_binding_e2e!(pqmagic_rs, P, &full, &m));
     });
 
     g.finish();

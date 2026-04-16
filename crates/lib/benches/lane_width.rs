@@ -62,10 +62,10 @@ fn bench_lane_widths_for<P: kem_rs::ParameterSet>(c: &mut kem_utils::CriterionCo
             });
         });
 
-        g.bench_function(BenchmarkId::new("roundtrip", width), |b| {
+        g.bench_function(BenchmarkId::new("e2e", width), |b| {
             kem_math::set_lane_width(width);
-            let (pk, sk) = kem_rs::keypair_derand::<P>(&keygen_coins);
             b.iter(|| {
+                let (pk, sk) = kem_rs::keypair_derand::<P>(black_box(&keygen_coins));
                 let (ct, _) =
                     kem_rs::encapsulate_derand::<P>(black_box(&pk), black_box(&enc_coins));
                 black_box(kem_rs::decapsulate::<P>(black_box(&ct), black_box(&sk)));
