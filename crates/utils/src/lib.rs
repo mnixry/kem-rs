@@ -6,13 +6,13 @@ pub mod profiler;
 pub use criterion;
 use criterion::Criterion;
 
-pub type CriterionConfig = Criterion<measure::UserTime>;
+pub type CriterionConfig = Criterion<measure::CPUTime>;
 
 #[must_use]
 pub fn criterion_config() -> CriterionConfig {
     criterion::Criterion::default()
         .with_profiler(profiler::PProfProfiler::new(1997))
-        .with_measurement(measure::UserTime)
+        .with_measurement(measure::CPUTime)
 }
 
 #[cfg(test)]

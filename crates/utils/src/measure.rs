@@ -1,22 +1,21 @@
 use std::time::Duration;
 
 use criterion::measurement::{Measurement, WallTime};
-use nix::sys::{
-    resource::{UsageWho, getrusage},
-    time::{TimeVal, TimeValLike},
+use nix::{
+    sys::time::TimeSpec,
+    time::{ClockId, clock_gettime},
 };
 
-pub struct UserTime;
+pub struct CPUTime;
 
-impl UserTime {
-    fn get_time() -> TimeVal {
-        let rc = getrusage(UsageWho::RUSAGE_SELF).expect("failed to get process CPU time");
-        rc.user_time()
+impl CPUTime {
+    fn get_time() -> TimeSpec {
+        clock_gettime(ClockId::CLOCK_THREAD_CPUTIME_ID).expect("failed to get thread CPU time")
     }
 }
 
-impl Measurement for UserTime {
-    type Intermediate = TimeVal;
+impl Measurement for CPUTime {
+    type Intermediate = TimeSpec;
     type Value = Duration;
 
     fn start(&self) -> Self::Intermediate {
@@ -26,12 +25,7 @@ impl Measurement for UserTime {
     #[allow(clippy::cast_sign_loss)]
     fn end(&self, i: Self::Intermediate) -> Self::Value {
         let elapsed = Self::get_time() - i;
-        Duration::from_nanos(
-            elapsed
-                .num_nanoseconds()
-                .try_into()
-                .expect("time gone backwards"),
-        )
+        elapsed.into()
     }
 
     fn add(&self, v1: &Self::Value, v2: &Self::Value) -> Self::Value {
@@ -60,13 +54,13 @@ mod tests {
 
     #[test]
     fn zero_is_zero() {
-        assert_eq!(UserTime.zero(), Duration::ZERO);
+        assert_eq!(CPUTime.zero(), Duration::ZERO);
     }
 
     #[test]
     fn start_end_returns_non_negative() {
-        let start = UserTime.start();
-        let elapsed = UserTime.end(start);
+        let start = CPUTime.start();
+        let elapsed = CPUTime.end(start);
         assert!(elapsed.as_nanos() < u128::MAX);
     }
 
@@ -74,17 +68,17 @@ mod tests {
     fn add_sums_durations() {
         let a = Duration::from_millis(10);
         let b = Duration::from_millis(20);
-        assert_eq!(UserTime.add(&a, &b), Duration::from_millis(30));
+        assert_eq!(CPUTime.add(&a, &b), Duration::from_millis(30));
     }
 
     #[test]
     fn to_f64_converts_nanos() {
         let d = Duration::from_micros(1);
-        assert!((UserTime.to_f64(&d) - 1000.0).abs() < f64::EPSILON);
+        assert!((CPUTime.to_f64(&d) - 1000.0).abs() < f64::EPSILON);
     }
 
     #[test]
     fn formatter_returns_some() {
-        let _ = UserTime.formatter();
+        let _ = CPUTime.formatter();
     }
 }

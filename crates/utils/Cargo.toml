@@ -5,7 +5,7 @@ version = "0.1.0"
 
 [dependencies]
 criterion = { version = "0.8.2", features = ["html_reports"] }
-nix       = { version = "0.31.2", features = ["resource"] }
+nix       = { version = "0.31.2", features = ["time"] }
 
 [dependencies.pprof]
 features = ["flamegraph", "frame-pointer", "prost-codec"]
