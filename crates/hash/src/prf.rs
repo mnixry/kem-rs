@@ -12,9 +12,12 @@ use crate::{
 /// `K`-way parallel SHAKE-256 PRF: absorb `seed || nonce` per lane and
 /// squeeze `Eta::BUF_BYTES` bytes from each.
 #[must_use]
+#[inline]
 pub fn prf_batch<Eta: CbdWidth, const K: usize>(
     seed: &[u8; SYMBYTES], nonces: [u8; K],
 ) -> [Eta::Buffer; K] {
+    const { assert!(Eta::BUF_BYTES % 8 == 0) };
+
     let mut outputs: [_; K] = core::array::from_fn(|_| Eta::Buffer::zeroed());
 
     let mut state: [Simd<u64, K>; PLEN] = [Simd::splat(0); PLEN];
@@ -28,8 +31,6 @@ pub fn prf_batch<Eta: CbdWidth, const K: usize>(
     state[16] = Simd::splat(0x80_u64 << 56);
 
     f1600(&mut state);
-
-    const { assert!(Eta::BUF_BYTES % 8 == 0) };
 
     let mut written = 0;
     while written < Eta::BUF_BYTES {

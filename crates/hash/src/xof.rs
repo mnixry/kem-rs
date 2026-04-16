@@ -12,13 +12,13 @@ use crate::{SHAKE_PAD, SHAKE128_RATE};
 /// Created by [`xof_absorb`]. Each call to
 /// [`squeeze_blocks`](Self::squeeze_blocks) produces one 168-byte block per
 /// lane and advances all states with a single SIMD permutation.
+#[repr(C, align(32))]
 pub struct Shake128Reader<const L: usize> {
     state: [Simd<u64, L>; PLEN],
 }
 
 impl<const L: usize> Shake128Reader<L> {
     /// Squeeze one SHAKE-128 rate block (168 bytes) from each of the `L` lanes.
-    #[inline]
     pub fn squeeze_blocks(&mut self) -> [[u8; SHAKE128_RATE]; L] {
         let mut outs = [[0u8; SHAKE128_RATE]; L];
         for (i, word) in self.state.iter().enumerate().take(SHAKE128_RATE / 8) {

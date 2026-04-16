@@ -25,6 +25,7 @@ use kem_math::{ByteArray, CbdWidth, SYMBYTES};
 
 /// Single-lane SHAKE-256 PRF via scalar sponge.
 #[must_use]
+#[inline]
 pub fn prf<Eta: CbdWidth>(seed: &[u8; SYMBYTES], nonce: u8) -> Eta::Buffer {
     let mut input = [0u8; SYMBYTES + 1];
     input[..SYMBYTES].copy_from_slice(seed);

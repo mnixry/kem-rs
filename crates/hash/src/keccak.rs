@@ -61,17 +61,46 @@ macro_rules! unroll_n {
     };
 }
 
-macro_rules! rotl {
-    ($x:expr, $n:expr) => {
-        ($x << Simd::splat($n as u64)) | ($x >> Simd::splat((64 - $n) as u64))
-    };
+pub trait Arithmetics:
+    Copy
+    + Default
+    + core::ops::BitXorAssign
+    + core::ops::BitXor<Output = Self>
+    + core::ops::Not<Output = Self>
+    + core::ops::BitAnd<Output = Self> {
+    fn rotate_left(self, n: u32) -> Self;
+    fn load_u64(value: u64) -> Self;
+}
+
+impl Arithmetics for u64 {
+    #[inline]
+    fn rotate_left(self, n: u32) -> Self {
+        self.rotate_left(n)
+    }
+
+    #[inline]
+    fn load_u64(value: u64) -> Self {
+        value
+    }
+}
+
+impl<const L: usize> Arithmetics for Simd<u64, L> {
+    #[inline]
+    fn rotate_left(self, n: u32) -> Self {
+        (self << Self::splat(u64::from(n))) | (self >> Self::splat(u64::from(64 - n)))
+    }
+
+    #[inline]
+    fn load_u64(value: u64) -> Self {
+        Self::splat(value)
+    }
 }
 
 /// Keccak-f[1600] permutation over `L` parallel states.
-#[allow(unused_assignments, clippy::cast_lossless)]
-pub fn f1600<const L: usize>(state: &mut [Simd<u64, L>; PLEN]) {
+#[allow(unused_assignments)]
+pub fn f1600<T: Arithmetics>(state: &mut [T; PLEN]) {
     for &rc in &RC {
-        let mut array = [Simd::splat(0u64); 5];
+        let mut array = [T::default(); 5];
 
         // Theta
         unroll_n!(5, x, {
@@ -81,7 +110,7 @@ pub fn f1600<const L: usize>(state: &mut [Simd<u64, L>; PLEN]) {
         });
         unroll_n!(5, x, {
             let t1 = array[(x + 4) % 5];
-            let t2 = rotl!(array[(x + 1) % 5], 1);
+            let t2 = array[(x + 1) % 5].rotate_left(1);
             unroll_n!(5, y, {
                 state[5 * y + x] ^= t1 ^ t2;
             });
@@ -91,7 +120,7 @@ pub fn f1600<const L: usize>(state: &mut [Simd<u64, L>; PLEN]) {
         let mut last = state[1];
         unroll_n!(24, i, {
             array[0] = state[PI[i]];
-            state[PI[i]] = rotl!(last, RHO[i]);
+            state[PI[i]] = last.rotate_left(RHO[i]);
             last = array[0];
         });
 
@@ -105,15 +134,15 @@ pub fn f1600<const L: usize>(state: &mut [Simd<u64, L>; PLEN]) {
         });
 
         // Iota
-        state[0] ^= Simd::splat(rc);
+        state[0] ^= T::load_u64(rc);
     }
 }
 
 /// Splat a 32-byte seed into the first 4 words of all lanes.
 #[inline]
-pub fn absorb_seed<const L: usize>(state: &mut [Simd<u64, L>; PLEN], seed: &[u8; 32]) {
+pub fn absorb_seed<T: Arithmetics>(state: &mut [T; PLEN], seed: &[u8; 32]) {
     let (chunks, _) = seed.as_chunks();
     unroll!(i, [0, 1, 2, 3], {
-        state[i] = Simd::splat(u64::from_le_bytes(chunks[i]));
+        state[i] = T::load_u64(u64::from_le_bytes(chunks[i]));
     });
 }
