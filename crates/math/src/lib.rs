@@ -78,14 +78,14 @@ mod tests {
     #[test]
     fn test_unroll() {
         let mut sum = 0;
-        unroll!(i, [1, 2, 3, 4, 5], {
+        unroll!(i, (1, 2, 3, 4, 5), {
             sum += i;
         });
         assert_eq!(sum, 15);
     }
 
     #[test]
-    fn test_unroll_as_array() {
+    fn test_unroll_assign() {
         let (sum, result) = const {
             let mut sum = 0;
             let result = unroll!(i, [1, 2, 3, 4, 5], {

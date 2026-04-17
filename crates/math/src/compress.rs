@@ -70,7 +70,7 @@ impl CompressWidth for D1 {
         let (chunks, _) = t.as_chunks::<8>();
         for (byte, chunk) in r.iter_mut().zip(chunks) {
             let mut b = 0u8;
-            unroll!(j, [0, 1, 2, 3, 4, 5, 6, 7], {
+            unroll!(j, (0, 1, 2, 3, 4, 5, 6, 7), {
                 b |= (chunk[j] as u8) << j;
             });
             *byte = b;

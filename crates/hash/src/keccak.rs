@@ -47,15 +47,15 @@ const RC: [u64; 24] = [
 
 macro_rules! unroll_n {
     (5, $var:ident, $body:expr) => {
-        unroll!($var, [0, 1, 2, 3, 4], $body);
+        unroll!($var, (0, 1, 2, 3, 4), $body);
     };
     (24, $var:ident, $body:expr) => {
         unroll!(
             $var,
-            [
+            (
                 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
                 23
-            ],
+            ),
             $body
         );
     };
@@ -142,7 +142,7 @@ pub fn f1600<T: Arithmetics>(state: &mut [T; PLEN]) {
 #[inline]
 pub fn absorb_seed<T: Arithmetics>(state: &mut [T; PLEN], seed: &[u8; 32]) {
     let (chunks, _) = seed.as_chunks();
-    unroll!(i, [0, 1, 2, 3], {
+    unroll!(i, (0, 1, 2, 3), {
         state[i] = T::load_u64(u64::from_le_bytes(chunks[i]));
     });
 }
