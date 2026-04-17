@@ -285,7 +285,7 @@ mod tests {
 
     #[test]
     fn ntt_roundtrip_all_lane_widths() {
-        use crate::simd::{LaneWidth, set_lane_width};
+        use crate::simd::{LaneWidth, default_lane_width, set_lane_width};
 
         let mut a = [0i16; N];
         for (i, c) in a.iter_mut().enumerate() {
@@ -309,14 +309,14 @@ mod tests {
             }
             assert_eq!(r, original, "roundtrip failed at width {width:?}");
         }
-        set_lane_width(LaneWidth::W256Bit);
+        set_lane_width(default_lane_width());
     }
 
     #[test]
     fn ntt_basemul_all_lane_widths() {
         use crate::{
             poly::Polynomial,
-            simd::{LaneWidth, set_lane_width},
+            simd::{LaneWidth, default_lane_width, set_lane_width},
         };
 
         let mut a = Polynomial::zero();
@@ -342,6 +342,6 @@ mod tests {
                 assert_eq!(got, exp, "mismatch at {i} (width {width:?})");
             }
         }
-        set_lane_width(LaneWidth::W256Bit);
+        set_lane_width(default_lane_width());
     }
 }

@@ -19,7 +19,55 @@ pub enum LaneWidth {
     W1024Bit = 1024,
 }
 
-static LANE_WIDTH: AtomicUsize = AtomicUsize::new(LaneWidth::W256Bit as usize);
+/// Pick the widest vector width the target guarantees at compile time.
+///
+/// Most ISAs expose fixed-width SIMD directly. RISC-V RVV instead exposes
+/// minimum vector lengths via `zvl*`; we map the widest guaranteed minimum onto
+/// the closest supported lane width. Targets with scalable vectors that do not
+/// expose a usable minimum length (for example SVE) fall back to the
+/// historical 256-bit default.
+pub const fn default_lane_width() -> LaneWidth {
+    cfg_select! {
+        any(
+            all(target_arch = "hexagon", target_feature = "hvx-length128b"),
+            all(any(target_arch = "riscv32", target_arch = "riscv64"), target_feature = "zvl1024b"),
+        ) => LaneWidth::W1024Bit,
+        any(
+            all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "avx512bw"),
+            all(target_arch = "hexagon", target_feature = "hvx"),
+            all(any(target_arch = "riscv32", target_arch = "riscv64"), target_feature = "zvl512b"),
+        ) => LaneWidth::W512Bit,
+        any(
+            all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "avx2"),
+            all(target_arch = "loongarch64", target_feature = "lasx"),
+            all(any(target_arch = "riscv32", target_arch = "riscv64"), target_feature = "zvl256b"),
+        ) => LaneWidth::W256Bit,
+        any(
+            all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "sse2"),
+            all(any(target_arch = "arm", target_arch = "aarch64"), target_feature = "neon"),
+            all(target_family = "wasm", target_feature = "simd128"),
+            all(any(target_arch = "powerpc", target_arch = "powerpc64"), any(target_feature = "altivec", target_feature = "vsx")),
+            all(target_arch = "loongarch64", target_feature = "lsx"),
+            all(any(target_arch = "mips", target_arch = "mips64"), target_feature = "msa"),
+            all(target_arch = "s390x", target_feature = "vector"),
+            all(
+                any(target_arch = "riscv32", target_arch = "riscv64"),
+                any(
+                    target_feature = "v",
+                    target_feature = "zve32x",
+                    target_feature = "zve32f",
+                    target_feature = "zve64x",
+                    target_feature = "zve64f",
+                    target_feature = "zve64d",
+                    target_feature = "zvl128b",
+                ),
+            ),
+        ) => LaneWidth::W128Bit,
+        _ => LaneWidth::W256Bit,
+    }
+}
+
+static LANE_WIDTH: AtomicUsize = AtomicUsize::new(default_lane_width() as usize);
 
 /// Set the global SIMD lane width used by all polynomial / NTT operations.
 pub fn set_lane_width(w: LaneWidth) {
@@ -69,6 +117,6 @@ mod tests {
             set_lane_width(w);
             assert_eq!(get_lane_width(), w);
         }
-        set_lane_width(LaneWidth::W256Bit);
+        set_lane_width(default_lane_width());
     }
 }
