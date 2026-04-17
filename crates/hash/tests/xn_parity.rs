@@ -41,8 +41,10 @@ fn xof_4_lanes_matches_scalar() {
 
     for _ in 0..n_squeezes {
         let blocks = reader.squeeze_blocks();
-        for (lane, block) in outputs.iter_mut().zip(blocks.iter()) {
-            lane.extend_from_slice(block);
+        for lane in 0..4 {
+            for block in blocks {
+                outputs[lane].push(block[lane]);
+            }
         }
     }
 
@@ -65,8 +67,9 @@ fn xof_2_lanes_matches_scalar() {
 
     for (lane_idx, &(x, y)) in indices.iter().enumerate() {
         let expected = scalar_shake128_squeeze(&seed, x, y, 1);
+        let lane_bytes: [u8; SHAKE128_RATE] = core::array::from_fn(|pos| blocks[pos][lane_idx]);
         assert_eq!(
-            &blocks[lane_idx][..],
+            &lane_bytes[..],
             &expected[..SHAKE128_RATE],
             "xof<2> lane {lane_idx} mismatch"
         );
@@ -84,8 +87,9 @@ fn xof_various_seeds() {
 
         for (lane_idx, &(x, y)) in indices.iter().enumerate() {
             let expected = scalar_shake128_squeeze(&seed, x, y, 1);
+            let lane_bytes: [u8; SHAKE128_RATE] = core::array::from_fn(|pos| blocks[pos][lane_idx]);
             assert_eq!(
-                &blocks[lane_idx][..],
+                &lane_bytes[..],
                 &expected[..SHAKE128_RATE],
                 "seed tag={tag} lane {lane_idx} mismatch"
             );

@@ -218,7 +218,7 @@ fn rej_sample_xof<const L: usize, const K: usize>(
                 if counters[lane] >= N {
                     break;
                 }
-                let val1 = u16::from_le_bytes([bufs[lane][pos], bufs[lane][pos + 1]]) & 0x0FFF;
+                let val1 = u16::from_le_bytes([bufs[pos][lane], bufs[pos + 1][lane]]) & 0x0FFF;
                 if val1 < Q as u16 {
                     coefficients[lane][counters[lane]] = val1.cast_signed();
                     counters[lane] += 1;
@@ -227,7 +227,7 @@ fn rej_sample_xof<const L: usize, const K: usize>(
                 if counters[lane] >= N {
                     break;
                 }
-                let val2 = u16::from_le_bytes([bufs[lane][pos + 1], bufs[lane][pos + 2]]) >> 4;
+                let val2 = u16::from_le_bytes([bufs[pos + 1][lane], bufs[pos + 2][lane]]) >> 4;
                 if val2 < Q as u16 {
                     coefficients[lane][counters[lane]] = val2.cast_signed();
                     counters[lane] += 1;

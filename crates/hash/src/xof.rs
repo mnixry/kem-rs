@@ -1,8 +1,8 @@
 //! SHAKE-128 XOF reader, generic over parallel lane count.
 
-use core::simd::Simd;
+use core::simd::{Simd, num::SimdUint};
 
-use kem_math::SYMBYTES;
+use kem_math::{SYMBYTES, unroll};
 
 use super::keccak::{PLEN, absorb_seed, f1600};
 use crate::{SHAKE_PAD, SHAKE128_RATE};
@@ -19,15 +19,18 @@ pub struct Shake128Reader<const L: usize> {
 
 impl<const L: usize> Shake128Reader<L> {
     /// Squeeze one SHAKE-128 rate block (168 bytes) from each of the `L` lanes.
-    pub fn squeeze_blocks(&mut self) -> [[u8; SHAKE128_RATE]; L] {
-        let mut outs = [[0u8; SHAKE128_RATE]; L];
-        for (i, word) in self.state.iter().enumerate().take(SHAKE128_RATE / 8) {
-            let lanes = word.to_array();
-            for (j, val) in lanes.iter().enumerate() {
-                outs[j][i * 8..(i + 1) * 8].copy_from_slice(&val.to_le_bytes());
-            }
-        }
+    ///
+    /// Returns bytes in position-major order: `out[byte_pos][lane]`.
+    /// This keeps each SIMD word's bytes contiguous in memory, avoiding
+    /// 168-byte strides between lane writes.
+    pub fn squeeze_blocks(&mut self) -> [[u8; L]; SHAKE128_RATE] {
+        let mut outs = [[0u8; L]; SHAKE128_RATE];
         f1600(&mut self.state);
+        for (word, out_chunk) in self.state.iter().zip(outs.as_chunks_mut::<8>().0) {
+            *out_chunk = unroll!(i, [0, 1, 2, 3, 4, 5, 6, 7], {
+                *(word >> (i * 8)).cast::<u8>().as_array()
+            });
+        }
         outs
     }
 }
@@ -49,8 +52,6 @@ pub fn xof_absorb<const L: usize>(
 
     // End-of-rate padding: byte 167 = word 20, byte offset 7.
     state[20] = Simd::splat(0x80_u64 << 56);
-
-    f1600(&mut state);
 
     Shake128Reader { state }
 }
