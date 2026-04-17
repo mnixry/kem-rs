@@ -37,6 +37,12 @@ macro_rules! unroll {
             $body
         },)*
     ]};
+    ($var:ident, ( $($i:expr),* $(,)? ), $body:tt) => {{
+        $(
+            let $var = $i;
+            $body;
+        )*
+    }};
 }
 
 pub trait ByteArray:

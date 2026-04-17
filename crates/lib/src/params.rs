@@ -245,17 +245,46 @@ fn rej_sample_xof<const L: usize, const K: usize>(
 macro_rules! gen_matrix_body {
     // K=2, KK=4: single f1600<4> batch
     (2, $seed:expr, $trans:expr, $a:expr) => {
-        rej_sample_xof::<4, 2>($seed, $trans, 0, &mut $a);
+        match kem_math::get_lane_width() {
+            kem_math::LaneWidth::W128Bit => kem_math::unroll!(j, (0, 1), {
+                rej_sample_xof::<2, 2>($seed, $trans, 2 * j, &mut $a);
+            }),
+            _ => {
+                rej_sample_xof::<4, 2>($seed, $trans, 0, &mut $a);
+            }
+        }
     };
     // K=3, KK=9: f1600<8> for first 8, f1600<1> for the tail
     (3, $seed:expr, $trans:expr, $a:expr) => {
-        rej_sample_xof::<8, 3>($seed, $trans, 0, &mut $a);
+        match kem_math::get_lane_width() {
+            kem_math::LaneWidth::W128Bit => kem_math::unroll!(j, (0, 1, 2, 3), {
+                rej_sample_xof::<2, 3>($seed, $trans, 2 * j, &mut $a);
+            }),
+            kem_math::LaneWidth::W256Bit => kem_math::unroll!(j, (0, 1), {
+                rej_sample_xof::<4, 3>($seed, $trans, 4 * j, &mut $a);
+            }),
+            _ => {
+                rej_sample_xof::<8, 3>($seed, $trans, 0, &mut $a);
+            }
+        }
         rej_sample_xof::<1, 3>($seed, $trans, 8, &mut $a);
     };
     // K=4, KK=16: two f1600<8> batches
     (4, $seed:expr, $trans:expr, $a:expr) => {
-        rej_sample_xof::<8, 4>($seed, $trans, 0, &mut $a);
-        rej_sample_xof::<8, 4>($seed, $trans, 8, &mut $a);
+        match kem_math::get_lane_width() {
+            kem_math::LaneWidth::W128Bit => kem_math::unroll!(j, (0, 1, 2, 3, 4, 5, 6, 7), {
+                rej_sample_xof::<2, 4>($seed, $trans, 2 * j, &mut $a);
+            }),
+            kem_math::LaneWidth::W256Bit => kem_math::unroll!(j, (0, 1, 2, 3), {
+                rej_sample_xof::<4, 4>($seed, $trans, 4 * j, &mut $a);
+            }),
+            kem_math::LaneWidth::W512Bit => kem_math::unroll!(j, (0, 1), {
+                rej_sample_xof::<8, 4>($seed, $trans, 8 * j, &mut $a);
+            }),
+            kem_math::LaneWidth::W1024Bit => {
+                rej_sample_xof::<16, 4>($seed, $trans, 0, &mut $a);
+            }
+        }
     };
 }
 
