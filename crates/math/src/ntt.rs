@@ -2,10 +2,7 @@
 
 use core::simd::Simd;
 
-use crate::{
-    N,
-    simd::{barrett_reduce_vec, fqmul_vec},
-};
+use crate::{N, simd::fqmul_vec};
 
 const Q64: i64 = crate::Q as i64;
 
@@ -86,7 +83,9 @@ macro_rules! ntt_layer {
             start += 2 * $len;
         }
     }};
-    (inv, $r:ident, $k:ident, $len:literal, $sw:literal) => {{
+    // Inverse butterfly WITHOUT Barrett reduction on the sum.
+    // Caller must ensure |a + b| and |b - a| fit in i16 (no wrapping).
+    (inv_nored, $r:ident, $k:ident, $len:literal, $sw:literal) => {{
         let mut start = 0usize;
         while start < N {
             let zeta = ZETAS[$k];
@@ -97,7 +96,7 @@ macro_rules! ntt_layer {
             while i < $len {
                 let a = Simd::<i16, $sw>::from_slice(&lo[i..]);
                 let b = Simd::<i16, $sw>::from_slice(&hi[i..]);
-                barrett_reduce_vec(a + b).copy_to_slice(&mut lo[i..i + $sw]);
+                (a + b).copy_to_slice(&mut lo[i..i + $sw]);
                 fqmul_vec(z, b - a).copy_to_slice(&mut hi[i..i + $sw]);
                 i += $sw;
             }
@@ -181,18 +180,28 @@ pub fn forward_ntt(r: &mut [i16; N]) {
 
 /// Inverse NTT (in-place). Bit-reversed in, standard order out,
 /// each coefficient scaled by Montgomery factor `R = 2^{16}`.
+///
+/// Uses lazy Barrett reduction: an initial `poly_reduce` brings all
+/// coefficients into `[-q/2, q/2]`, then layers 1–4 (len 2..16) run without
+/// per-butterfly Barrett reduction because `|a + b|` stays within i16 range (≤
+/// 27 312). A second `poly_reduce` after layer 4 restores the invariant for
+/// layers 5–7.
 pub fn inverse_ntt(r: &mut [i16; N]) {
     const F: i16 = centred(pow_mod(2, 32, Q64) * pow_mod(128, Q64 - 2, Q64) % Q64);
     macro_rules! body {
         ($lanes:literal) => {{
             let mut k = 127usize;
-            ntt_dispatch_layer!(inv, r, k, 2, $lanes);
-            ntt_dispatch_layer!(inv, r, k, 4, $lanes);
-            ntt_dispatch_layer!(inv, r, k, 8, $lanes);
-            ntt_dispatch_layer!(inv, r, k, 16, $lanes);
-            ntt_dispatch_layer!(inv, r, k, 32, $lanes);
-            ntt_dispatch_layer!(inv, r, k, 64, $lanes);
-            ntt_dispatch_layer!(inv, r, k, 128, $lanes);
+            // Reduce to [-q/2, q/2] so layers 1–4 cannot overflow i16.
+            crate::simd::poly_reduce(r);
+            ntt_dispatch_layer!(inv_nored, r, k, 2, $lanes);
+            ntt_dispatch_layer!(inv_nored, r, k, 4, $lanes);
+            ntt_dispatch_layer!(inv_nored, r, k, 8, $lanes);
+            ntt_dispatch_layer!(inv_nored, r, k, 16, $lanes);
+            // Reduce again: max value after 4 lazy layers ≈ 27 312.
+            crate::simd::poly_reduce(r);
+            ntt_dispatch_layer!(inv_nored, r, k, 32, $lanes);
+            ntt_dispatch_layer!(inv_nored, r, k, 64, $lanes);
+            ntt_dispatch_layer!(inv_nored, r, k, 128, $lanes);
         }};
     }
     match crate::simd::get_lane_width() {
