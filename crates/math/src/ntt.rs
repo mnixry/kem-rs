@@ -172,10 +172,10 @@ pub fn forward_ntt(r: &mut [i16; N]) {
         }};
     }
     match crate::simd::get_lane_width() {
-        crate::simd::LaneWidth::L8 => body!(8),
-        crate::simd::LaneWidth::L16 => body!(16),
-        crate::simd::LaneWidth::L32 => body!(32),
-        crate::simd::LaneWidth::L64 => body!(64),
+        crate::simd::LaneWidth::W128Bit => body!(8),
+        crate::simd::LaneWidth::W256Bit => body!(16),
+        crate::simd::LaneWidth::W512Bit => body!(32),
+        crate::simd::LaneWidth::W1024Bit => body!(64),
     }
 }
 
@@ -196,10 +196,10 @@ pub fn inverse_ntt(r: &mut [i16; N]) {
         }};
     }
     match crate::simd::get_lane_width() {
-        crate::simd::LaneWidth::L8 => body!(8),
-        crate::simd::LaneWidth::L16 => body!(16),
-        crate::simd::LaneWidth::L32 => body!(32),
-        crate::simd::LaneWidth::L64 => body!(64),
+        crate::simd::LaneWidth::W128Bit => body!(8),
+        crate::simd::LaneWidth::W256Bit => body!(16),
+        crate::simd::LaneWidth::W512Bit => body!(32),
+        crate::simd::LaneWidth::W1024Bit => body!(64),
     }
     crate::simd::poly_mul_scalar_montgomery(r, F);
 }
@@ -294,10 +294,10 @@ mod tests {
         let original = a;
 
         for width in [
-            LaneWidth::L8,
-            LaneWidth::L16,
-            LaneWidth::L32,
-            LaneWidth::L64,
+            LaneWidth::W128Bit,
+            LaneWidth::W256Bit,
+            LaneWidth::W512Bit,
+            LaneWidth::W1024Bit,
         ] {
             let mut r = original;
             set_lane_width(width);
@@ -309,7 +309,7 @@ mod tests {
             }
             assert_eq!(r, original, "roundtrip failed at width {width:?}");
         }
-        set_lane_width(LaneWidth::L16);
+        set_lane_width(LaneWidth::W256Bit);
     }
 
     #[test]
@@ -328,10 +328,10 @@ mod tests {
         let expected = schoolbook_mul(&a.0, &b.0);
 
         for width in [
-            LaneWidth::L8,
-            LaneWidth::L16,
-            LaneWidth::L32,
-            LaneWidth::L64,
+            LaneWidth::W128Bit,
+            LaneWidth::W256Bit,
+            LaneWidth::W512Bit,
+            LaneWidth::W1024Bit,
         ] {
             set_lane_width(width);
             let a_ntt = a.ntt();
@@ -342,6 +342,6 @@ mod tests {
                 assert_eq!(got, exp, "mismatch at {i} (width {width:?})");
             }
         }
-        set_lane_width(LaneWidth::L16);
+        set_lane_width(LaneWidth::W256Bit);
     }
 }

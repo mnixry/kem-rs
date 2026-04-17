@@ -8,11 +8,11 @@ use core::hint::black_box;
 use kem_math::LaneWidth;
 use kem_utils::criterion::{BenchmarkId, criterion_group, criterion_main};
 
-const LANE_WIDTHS: [LaneWidth; 4] = [
-    LaneWidth::L8,
-    LaneWidth::L16,
-    LaneWidth::L32,
-    LaneWidth::L64,
+const LANE_WIDTHS: &[LaneWidth] = &[
+    LaneWidth::W128Bit,
+    LaneWidth::W256Bit,
+    LaneWidth::W512Bit,
+    LaneWidth::W1024Bit,
 ];
 
 fn deterministic_coins() -> ([u8; 64], [u8; 32]) {
@@ -33,8 +33,8 @@ fn bench_lane_widths_for<P: kem_rs::ParameterSet>(c: &mut kem_utils::CriterionCo
 
     let (keygen_coins, enc_coins) = deterministic_coins();
 
-    for &width in &LANE_WIDTHS {
-        g.bench_function(BenchmarkId::new("keypair", width), |b| {
+    for &width in LANE_WIDTHS {
+        g.bench_function(BenchmarkId::new("keypair", width as usize), |b| {
             b.iter_batched(
                 || kem_math::set_lane_width(width),
                 |()| black_box(kem_rs::keypair_derand::<P>(black_box(&keygen_coins))),
@@ -42,7 +42,7 @@ fn bench_lane_widths_for<P: kem_rs::ParameterSet>(c: &mut kem_utils::CriterionCo
             );
         });
 
-        g.bench_function(BenchmarkId::new("encapsulate", width), |b| {
+        g.bench_function(BenchmarkId::new("encapsulate", width as usize), |b| {
             kem_math::set_lane_width(width);
             let (pk, _sk) = kem_rs::keypair_derand::<P>(&keygen_coins);
             b.iter(|| {
@@ -53,7 +53,7 @@ fn bench_lane_widths_for<P: kem_rs::ParameterSet>(c: &mut kem_utils::CriterionCo
             });
         });
 
-        g.bench_function(BenchmarkId::new("decapsulate", width), |b| {
+        g.bench_function(BenchmarkId::new("decapsulate", width as usize), |b| {
             kem_math::set_lane_width(width);
             let (pk, sk) = kem_rs::keypair_derand::<P>(&keygen_coins);
             let (ct, _) = kem_rs::encapsulate_derand::<P>(&pk, &enc_coins);
@@ -62,7 +62,7 @@ fn bench_lane_widths_for<P: kem_rs::ParameterSet>(c: &mut kem_utils::CriterionCo
             });
         });
 
-        g.bench_function(BenchmarkId::new("e2e", width), |b| {
+        g.bench_function(BenchmarkId::new("e2e", width as usize), |b| {
             kem_math::set_lane_width(width);
             b.iter(|| {
                 let (pk, sk) = kem_rs::keypair_derand::<P>(black_box(&keygen_coins));
@@ -74,7 +74,7 @@ fn bench_lane_widths_for<P: kem_rs::ParameterSet>(c: &mut kem_utils::CriterionCo
     }
 
     g.finish();
-    kem_math::set_lane_width(LaneWidth::L16);
+    kem_math::set_lane_width(LaneWidth::W256Bit);
 }
 
 fn lane_width_benches(c: &mut kem_utils::CriterionConfig) {
