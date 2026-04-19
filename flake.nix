@@ -46,17 +46,27 @@
           craneLib = (inputs.crane.mkLib pkgs).overrideToolchain (_: rust);
           craneCommonArgs =
             (craneLib.crateNameFromCargoToml { cargoToml = ./crates/lib/Cargo.toml; })
-            // rec {
-              src = ./.;
-              strictDeps = true;
-              cargoVendorDir = craneLib.vendorMultipleCargoDeps {
-                inherit (craneLib.findCargoFiles src) cargoConfigs;
-                cargoLockList = [
-                  ./Cargo.lock
-                  "${rust}/lib/rustlib/src/rust/library/Cargo.lock"
-                ];
-              };
-            };
+            // (
+              let
+                targetCpu = pkgs.runCommandLocal "rust-current-target-cpu" { buildInputs = [ rust ]; } ''
+                  rustc --print target-cpus \
+                    | sed -nE 's/.*native.*\(currently ([^)]+)\).*/\1/p' \
+                    | tee $out
+                '';
+              in
+              rec {
+                src = ./.;
+                strictDeps = true;
+                cargoVendorDir = craneLib.vendorMultipleCargoDeps {
+                  inherit (craneLib.findCargoFiles src) cargoConfigs;
+                  cargoLockList = [
+                    ./Cargo.lock
+                    "${rust}/lib/rustlib/src/rust/library/Cargo.lock"
+                  ];
+                };
+                env.RUSTFLAGS = "-Ctarget-cpu=${builtins.readFile targetCpu}";
+              }
+            );
           cargoArtifacts = craneLib.buildDepsOnly craneCommonArgs;
         in
         {
