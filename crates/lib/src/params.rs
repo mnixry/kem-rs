@@ -198,6 +198,10 @@ macro_rules! impl_parameter_set {
 fn rej_sample_xof<const L: usize, const K: usize>(
     seed: &[u8; SYMBYTES], transposed: bool, base: usize, a: &mut NttMatrix<K>,
 ) {
+    const TRIPLETS_PER_CHUNK: usize = 8;
+    const BYTES_PER_CHUNK: usize = TRIPLETS_PER_CHUNK * 3;
+    const NUM_CHUNKS: usize = SHAKE128_RATE / BYTES_PER_CHUNK;
+
     let indices: [(u8, u8); L] = core::array::from_fn(|k| {
         let (i, j) = ((base + k) / K, (base + k) % K);
         if transposed {
@@ -208,29 +212,29 @@ fn rej_sample_xof<const L: usize, const K: usize>(
     });
 
     let mut reader = kem_hash::xof::xof_absorb(seed, indices);
-    let mut coefficients = [[0i16; N]; L];
+    let mut coefficients = [[0i16; N + 16]; L];
     let mut counters = [0usize; L];
 
     while counters.iter().any(|&c| c < N) {
         let bufs = reader.squeeze_blocks();
         for lane in 0..L {
-            for pos in (0..SHAKE128_RATE).step_by(3) {
-                if counters[lane] >= N {
-                    break;
-                }
-                let val1 = u16::from_le_bytes([bufs[pos][lane], bufs[pos + 1][lane]]) & 0x0FFF;
-                if val1 < Q as u16 {
+            if counters[lane] >= N {
+                continue;
+            }
+            for chunk in 0..NUM_CHUNKS {
+                let base_pos = chunk * BYTES_PER_CHUNK;
+                for t in 0..TRIPLETS_PER_CHUNK {
+                    let pos = base_pos + t * 3;
+                    let val1 = u16::from_le_bytes([bufs[pos][lane], bufs[pos + 1][lane]]) & 0x0FFF;
                     coefficients[lane][counters[lane]] = val1.cast_signed();
-                    counters[lane] += 1;
-                }
+                    counters[lane] += usize::from(val1 < Q as u16);
 
+                    let val2 = u16::from_le_bytes([bufs[pos + 1][lane], bufs[pos + 2][lane]]) >> 4;
+                    coefficients[lane][counters[lane]] = val2.cast_signed();
+                    counters[lane] += usize::from(val2 < Q as u16);
+                }
                 if counters[lane] >= N {
                     break;
-                }
-                let val2 = u16::from_le_bytes([bufs[pos + 1][lane], bufs[pos + 2][lane]]) >> 4;
-                if val2 < Q as u16 {
-                    coefficients[lane][counters[lane]] = val2.cast_signed();
-                    counters[lane] += 1;
                 }
             }
         }
@@ -238,7 +242,9 @@ fn rej_sample_xof<const L: usize, const K: usize>(
 
     for (k, c) in coefficients.iter().enumerate() {
         let (i, j) = ((base + k) / K, (base + k) % K);
-        *a.rows_mut()[i].polys_mut()[j].coeffs_mut() = *c;
+        a.rows_mut()[i].polys_mut()[j]
+            .coeffs_mut()
+            .copy_from_slice(&c[..N]);
     }
 }
 
