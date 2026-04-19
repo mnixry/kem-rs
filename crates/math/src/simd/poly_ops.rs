@@ -155,6 +155,25 @@ pub fn poly_basemul(a: &[i16; N], b: &[i16; N]) -> [i16; N] {
     super::dispatch_lanes!(poly_basemul_lanes(a, b))
 }
 
+/// Fused inner product: `sum_{k=0}^{K-1} basemul(a[k], b[k])`, Barrett-reduced.
+///
+/// Keeps the accumulator in SOA (structure-of-arrays) form across all K
+/// iterations, performing only ONE AOS↔SOA conversion pair per block instead
+/// of K. This eliminates K-1 interleave/deinterleave passes, K-1 `poly_adds`,
+/// and K zero-inits compared to the loop `basemul + add_assign`.
+#[inline]
+pub fn poly_inner_product<const K: usize>(a: [&[i16; N]; K], b: [&[i16; N]; K]) -> [i16; N] {
+    // Cannot use dispatch_lanes! because we have two const generics (K, L).
+    let mut result = match crate::simd::get_lane_width() {
+        crate::simd::LaneWidth::W128Bit => poly_inner_product_lanes::<K, 8>(a, b),
+        crate::simd::LaneWidth::W256Bit => poly_inner_product_lanes::<K, 16>(a, b),
+        crate::simd::LaneWidth::W512Bit => poly_inner_product_lanes::<K, 32>(a, b),
+        crate::simd::LaneWidth::W1024Bit => poly_inner_product_lanes::<K, 64>(a, b),
+    };
+    poly_reduce(&mut result);
+    result
+}
+
 /// Process `L` blocks in parallel using SIMD de-interleave/interleave for the
 /// stride-4 gather/scatter and `fqmul_vec` for the arithmetic.
 #[inline]
@@ -189,6 +208,62 @@ fn poly_basemul_lanes<const L: usize>(a: &[i16; N], b: &[i16; N]) -> [i16; N] {
         // 4-way re-interleave (SOA→AOS): reverse the deinterleave.
         let (lo02, hi02) = r0.interleave(r2);
         let (lo13, hi13) = r1.interleave(r3);
+        let (out0, out1) = lo02.interleave(lo13);
+        let (out2, out3) = hi02.interleave(hi13);
+
+        *out = [out0, out1, out2, out3].map(Into::into);
+    }
+    r
+}
+
+/// Fused inner product kernel: block-outermost, K-innermost loop.
+///
+/// For each of the `N / (4 * L)` blocks, deinterleave both a[k] and b[k],
+/// accumulate basemul products in SOA-format SIMD registers, and interleave
+/// ONCE at the end. The K loop is const-generic so the compiler unrolls it.
+#[inline]
+fn poly_inner_product_lanes<const K: usize, const L: usize>(
+    a: [&[i16; N]; K], b: [&[i16; N]; K],
+) -> [i16; N] {
+    let mut r = [0i16; N];
+    let zetas = &crate::ntt::ZETAS[64..];
+
+    let (r_chunks, _) = r.as_chunks_mut::<L>();
+    for (bi, out) in (r_chunks.as_chunks_mut::<4>().0).iter_mut().enumerate() {
+        let z = Simd::<i16, L>::from_slice(&zetas[bi * L..]);
+
+        let mut acc0 = Simd::<i16, L>::splat(0);
+        let mut acc1 = Simd::<i16, L>::splat(0);
+        let mut acc2 = Simd::<i16, L>::splat(0);
+        let mut acc3 = Simd::<i16, L>::splat(0);
+
+        for k in 0..K {
+            let (ak, _) = a[k].as_chunks::<L>();
+            let (bk, _) = b[k].as_chunks::<L>();
+            let ci = bi * 4; // base chunk index for this block
+
+            // 4-way deinterleave (AOS→SOA) for a[k]
+            let (t0, t1) = Simd::from_array(ak[ci]).deinterleave(Simd::from_array(ak[ci + 1]));
+            let (t2, t3) = Simd::from_array(ak[ci + 2]).deinterleave(Simd::from_array(ak[ci + 3]));
+            let (a0, a2) = t0.deinterleave(t2);
+            let (a1, a3) = t1.deinterleave(t3);
+
+            // 4-way deinterleave (AOS→SOA) for b[k]
+            let (t0, t1) = Simd::from_array(bk[ci]).deinterleave(Simd::from_array(bk[ci + 1]));
+            let (t2, t3) = Simd::from_array(bk[ci + 2]).deinterleave(Simd::from_array(bk[ci + 3]));
+            let (b0, b2) = t0.deinterleave(t2);
+            let (b1, b3) = t1.deinterleave(t3);
+
+            // Basemul and accumulate in SOA form
+            acc0 += fqmul_vec(fqmul_vec(a1, b1), z) + fqmul_vec(a0, b0);
+            acc1 += fqmul_vec(a0, b1) + fqmul_vec(a1, b0);
+            acc2 += fqmul_vec(fqmul_vec(a3, b3), -z) + fqmul_vec(a2, b2);
+            acc3 += fqmul_vec(a2, b3) + fqmul_vec(a3, b2);
+        }
+
+        // 4-way re-interleave (SOA→AOS): only once per block
+        let (lo02, hi02) = acc0.interleave(acc2);
+        let (lo13, hi13) = acc1.interleave(acc3);
         let (out0, out1) = lo02.interleave(lo13);
         let (out2, out3) = hi02.interleave(hi13);
 
@@ -243,5 +318,43 @@ mod tests {
         }
         poly_reduce(&mut data);
         assert_eq!(data, expected);
+    }
+
+    #[test]
+    fn fused_inner_product_matches_basemul_loop() {
+        // Build K=3 polynomial pairs with varied data.
+        const K: usize = 3;
+        let mut a_polys = [[0i16; N]; K];
+        let mut b_polys = [[0i16; N]; K];
+        for k in 0..K {
+            for i in 0..N {
+                a_polys[k][i] = ((k * N + i) as i16 * 13 + 7) % 1000 - 500;
+                b_polys[k][i] = ((k * N + i) as i16 * 7 + 3) % 1000 - 300;
+            }
+        }
+
+        // Reference: basemul + add + reduce (the old inner_product).
+        let mut expected = poly_basemul(&a_polys[0], &b_polys[0]);
+        for k in 1..K {
+            let prod = poly_basemul(&a_polys[k], &b_polys[k]);
+            poly_add_assign(&mut expected, &prod);
+        }
+        poly_reduce(&mut expected);
+
+        // Fused version.
+        let a_refs: [&[i16; N]; K] = [&a_polys[0], &a_polys[1], &a_polys[2]];
+        let b_refs: [&[i16; N]; K] = [&b_polys[0], &b_polys[1], &b_polys[2]];
+        let result = poly_inner_product(a_refs, b_refs);
+
+        // Both should produce Barrett-reduced results that are congruent mod q.
+        for i in 0..N {
+            let e = reduce::barrett_reduce(expected[i]);
+            let r = reduce::barrett_reduce(result[i]);
+            assert_eq!(
+                e, r,
+                "mismatch at {i}: expected {e} (raw {}), got {r} (raw {})",
+                expected[i], result[i]
+            );
+        }
     }
 }

@@ -86,12 +86,9 @@ impl<const K: usize> NttVector<K> {
     /// `sum_i(self[i] * other[i])` in NTT domain.
     #[must_use]
     pub fn inner_product(&self, other: &Self) -> NttPolynomial {
-        let mut acc = self.polys[0].basemul(&other.polys[0]);
-        for i in 1..K {
-            acc += &self.polys[i].basemul(&other.polys[i]);
-        }
-        acc.reduce();
-        acc
+        let a: [&[i16; crate::N]; K] = core::array::from_fn(|i| &self.polys[i].0);
+        let b: [&[i16; crate::N]; K] = core::array::from_fn(|i| &other.polys[i].0);
+        NttPolynomial(crate::simd::poly_inner_product(a, b))
     }
 
     /// Serialize to `K * 384` bytes (12-bit packing).
