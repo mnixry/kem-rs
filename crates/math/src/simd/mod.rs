@@ -1,18 +1,8 @@
-mod kernels;
-mod ntt;
-mod poly_ops;
+pub mod kernels;
+pub mod ntt;
+pub mod poly_ops;
 
 use core::sync::atomic::{AtomicUsize, Ordering};
-
-pub use kernels::fqmul_vec;
-pub use ntt::{
-    Q64, ZETAS, centred, ntt_layer_fwd, ntt_layer_fwd_packed, ntt_layer_inv_nored,
-    ntt_layer_inv_nored_packed, pow_mod,
-};
-pub use poly_ops::{
-    poly_add, poly_add_assign, poly_basemul, poly_compress_coeffs, poly_decompress_coeffs,
-    poly_inner_product, poly_mul_scalar_montgomery, poly_reduce, poly_sub, poly_to_montgomery,
-};
 
 /// SIMD lane width for `i16` operations.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

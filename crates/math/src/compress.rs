@@ -6,7 +6,7 @@
 //! D4/D5/D10/D11 use Barrett reciprocal multiplication in SIMD to replace
 //! per-coefficient scalar u32 division by Q.
 
-use crate::{N, Q, SYMBYTES, unroll};
+use crate::{N, Q, SYMBYTES, simd::poly_ops, unroll};
 
 mod sealed {
     pub trait Sealed {}
@@ -66,7 +66,7 @@ const fn decompress_coeff(y: u16, d: u32) -> u16 {
 
 impl CompressWidth for D1 {
     fn compress_poly(r: &mut [u8], a: &[i16; N]) {
-        let t = crate::simd::poly_compress_coeffs(a, 1);
+        let t = poly_ops::compress_coeffs(a, 1);
         let (chunks, _) = t.as_chunks::<8>();
         for (byte, chunk) in r.iter_mut().zip(chunks) {
             let mut b = 0u8;
@@ -90,7 +90,7 @@ impl CompressWidth for D1 {
 
 impl CompressWidth for D4 {
     fn compress_poly(r: &mut [u8], a: &[i16; N]) {
-        let t = crate::simd::poly_compress_coeffs(a, 4);
+        let t = poly_ops::compress_coeffs(a, 4);
         let (chunks, _) = t.as_chunks::<2>();
         for (byte, &[lo, hi]) in r.iter_mut().zip(chunks) {
             *byte = (lo as u8) | ((hi as u8) << 4);
@@ -103,13 +103,13 @@ impl CompressWidth for D4 {
         for (chunk, &byte) in chunks.iter_mut().zip(a) {
             *chunk = [byte & 0x0F, byte >> 4].map(|x| x as i16);
         }
-        *r = crate::simd::poly_decompress_coeffs(&t, 4);
+        *r = poly_ops::decompress_coeffs(&t, 4);
     }
 }
 
 impl CompressWidth for D5 {
     fn compress_poly(r: &mut [u8], a: &[i16; N]) {
-        let t = crate::simd::poly_compress_coeffs(a, 5);
+        let t = poly_ops::compress_coeffs(a, 5);
         let (in_chunks, _) = t.as_chunks::<8>();
         let (out_chunks, _) = r.as_chunks_mut::<5>();
         for (o, chunk) in out_chunks.iter_mut().zip(in_chunks) {
@@ -133,13 +133,13 @@ impl CompressWidth for D5 {
                 ((packed >> (i * 5)) & 0x1F) as i16
             });
         }
-        *r = crate::simd::poly_decompress_coeffs(&t, 5);
+        *r = poly_ops::decompress_coeffs(&t, 5);
     }
 }
 
 impl CompressWidth for D10 {
     fn compress_poly(r: &mut [u8], a: &[i16; N]) {
-        let t = crate::simd::poly_compress_coeffs(a, 10);
+        let t = poly_ops::compress_coeffs(a, 10);
         let (in_chunks, _) = t.as_chunks::<4>();
         let (out_chunks, _) = r.as_chunks_mut::<5>();
         for (o, chunk) in out_chunks.iter_mut().zip(in_chunks) {
@@ -161,13 +161,13 @@ impl CompressWidth for D10 {
             let packed = u64::from_le_bytes(buf);
             *o = unroll!(i, [0, 1, 2, 3], ((packed >> (i * 10)) & 0x3FF) as i16);
         }
-        *r = crate::simd::poly_decompress_coeffs(&t, 10);
+        *r = poly_ops::decompress_coeffs(&t, 10);
     }
 }
 
 impl CompressWidth for D11 {
     fn compress_poly(r: &mut [u8], a: &[i16; N]) {
-        let t = crate::simd::poly_compress_coeffs(a, 11);
+        let t = poly_ops::compress_coeffs(a, 11);
         let (in_chunks, _) = t.as_chunks::<8>();
         let (out_chunks, _) = r.as_chunks_mut::<11>();
         for (o, chunk) in out_chunks.iter_mut().zip(in_chunks) {
@@ -191,7 +191,7 @@ impl CompressWidth for D11 {
                 ((packed >> (i * 11)) & 0x7FF) as i16
             });
         }
-        *r = crate::simd::poly_decompress_coeffs(&t, 11);
+        *r = poly_ops::decompress_coeffs(&t, 11);
     }
 }
 
@@ -253,7 +253,7 @@ mod tests {
                 *c = ((i as i16 * 31) - 1500) % Q;
             }
 
-            let simd_out = crate::simd::poly_compress_coeffs(&coeffs, d);
+            let simd_out = poly_ops::compress_coeffs(&coeffs, d);
 
             for (i, &c) in coeffs.iter().enumerate() {
                 let expected = compress_coeff(csubq(c), d) as i16;
@@ -274,7 +274,7 @@ mod tests {
                 *c = (i as i16) % (max_val + 1);
             }
 
-            let simd_out = crate::simd::poly_decompress_coeffs(&compressed, d);
+            let simd_out = poly_ops::decompress_coeffs(&compressed, d);
 
             for (i, &y) in compressed.iter().enumerate() {
                 let expected = decompress_coeff(y as u16, d) as i16;

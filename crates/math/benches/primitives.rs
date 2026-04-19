@@ -42,7 +42,7 @@ fn bench_basemul(c: &mut kem_utils::CriterionConfig) {
     let a = test_poly(31).ntt();
     let b = test_poly(13).ntt();
 
-    g.bench_function("poly_basemul", |b_iter| {
+    g.bench_function("basemul", |b_iter| {
         b_iter.iter(|| black_box(black_box(&a).basemul(black_box(&b))));
     });
 
@@ -52,7 +52,7 @@ fn bench_basemul(c: &mut kem_utils::CriterionConfig) {
 fn bench_reduce(c: &mut kem_utils::CriterionConfig) {
     let mut g = c.benchmark_group("reduce");
 
-    g.bench_function("poly_reduce", |b| {
+    g.bench_function("reduce", |b| {
         let mut p = test_poly(31);
         b.iter(|| {
             black_box(&mut p).reduce();

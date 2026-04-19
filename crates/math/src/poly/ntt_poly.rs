@@ -1,7 +1,7 @@
 use core::ops;
 
 use super::Polynomial;
-use crate::{N, encode, ntt};
+use crate::{N, encode, ntt, simd::poly_ops};
 
 /// Polynomial in NTT (bit-reversed) domain.
 #[derive(Clone, Copy)]
@@ -23,17 +23,17 @@ impl NttPolynomial {
     }
 
     pub fn reduce(&mut self) {
-        crate::simd::poly_reduce(&mut self.0);
+        poly_ops::reduce(&mut self.0);
     }
 
     pub fn to_mont(&mut self) {
-        crate::simd::poly_to_montgomery(&mut self.0);
+        poly_ops::to_montgomery(&mut self.0);
     }
 
     /// Pointwise basemul: 128 degree-1 multiplications in NTT domain.
     #[must_use]
     pub fn basemul(&self, other: &Self) -> Self {
-        let result = crate::simd::poly_basemul(&self.0, &other.0);
+        let result = poly_ops::basemul(&self.0, &other.0);
         Self(result)
     }
 
@@ -82,14 +82,14 @@ impl<'b> ops::Add<&'b NttPolynomial> for &NttPolynomial {
     type Output = NttPolynomial;
     #[inline]
     fn add(self, rhs: &'b NttPolynomial) -> NttPolynomial {
-        NttPolynomial(crate::simd::poly_add(&self.0, &rhs.0))
+        NttPolynomial(poly_ops::add(&self.0, &rhs.0))
     }
 }
 
 impl ops::AddAssign<&Self> for NttPolynomial {
     #[inline]
     fn add_assign(&mut self, rhs: &Self) {
-        crate::simd::poly_add_assign(&mut self.0, &rhs.0);
+        poly_ops::add_assign(&mut self.0, &rhs.0);
     }
 }
 

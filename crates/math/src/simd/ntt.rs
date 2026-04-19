@@ -2,7 +2,7 @@
 
 use core::simd::{Simd, Swizzle};
 
-use super::fqmul_vec;
+use super::kernels::fqmul_vec;
 use crate::N;
 
 pub const Q64: i64 = crate::Q as i64;
@@ -159,7 +159,7 @@ mod swizzles {
 /// Single NTT butterfly layer. `$sw` (SIMD width) must divide `$len`.
 /// When `$sw == $len` the inner loop executes exactly once (no tail).
 #[inline]
-pub fn ntt_layer_fwd<const LEN: usize, const SW: usize>(r: &mut [i16; N], k: &mut usize) {
+pub fn layer_fwd<const LEN: usize, const SW: usize>(r: &mut [i16; N], k: &mut usize) {
     for start in (0..N).step_by(2 * LEN) {
         let zeta = ZETAS[*k];
         *k += 1;
@@ -178,7 +178,7 @@ pub fn ntt_layer_fwd<const LEN: usize, const SW: usize>(r: &mut [i16; N], k: &mu
 // Inverse butterfly WITHOUT Barrett reduction on the sum.
 // Caller must ensure |a + b| and |b - a| fit in i16 (no wrapping).
 #[inline]
-pub fn ntt_layer_inv_nored<const LEN: usize, const SW: usize>(r: &mut [i16; N], k: &mut usize) {
+pub fn layer_inv_nored<const LEN: usize, const SW: usize>(r: &mut [i16; N], k: &mut usize) {
     for start in (0..N).step_by(2 * LEN) {
         let zeta = ZETAS[*k];
         *k = k.wrapping_sub(1);
@@ -194,7 +194,7 @@ pub fn ntt_layer_inv_nored<const LEN: usize, const SW: usize>(r: &mut [i16; N], 
 }
 
 #[inline]
-pub fn ntt_layer_fwd_packed<const LEN: usize, const LANES: usize>(r: &mut [i16; N], k: &mut usize) {
+pub fn layer_fwd_packed<const LEN: usize, const LANES: usize>(r: &mut [i16; N], k: &mut usize) {
     let groups = LANES / LEN;
     for start in (0..N).step_by(2 * LANES) {
         let v0 = Simd::<i16, LANES>::from_slice(&r[start..]);
@@ -228,7 +228,7 @@ pub fn ntt_layer_fwd_packed<const LEN: usize, const LANES: usize>(r: &mut [i16; 
 }
 
 #[inline]
-pub fn ntt_layer_inv_nored_packed<const LEN: usize, const LANES: usize>(
+pub fn layer_inv_nored_packed<const LEN: usize, const LANES: usize>(
     r: &mut [i16; N], k: &mut usize,
 ) {
     let groups = LANES / LEN;

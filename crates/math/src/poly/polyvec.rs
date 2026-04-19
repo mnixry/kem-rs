@@ -1,7 +1,7 @@
 use core::ops;
 
 use super::{NttPolynomial, Polynomial};
-use crate::{POLYBYTES, compress::CompressWidth, encode};
+use crate::{POLYBYTES, compress::CompressWidth, encode, simd::poly_ops};
 
 /// A vector of `K` polynomials in standard (coefficient) form.
 #[derive(Clone)]
@@ -88,7 +88,7 @@ impl<const K: usize> NttVector<K> {
     pub fn inner_product(&self, other: &Self) -> NttPolynomial {
         let a: [&[i16; crate::N]; K] = core::array::from_fn(|i| &self.polys[i].0);
         let b: [&[i16; crate::N]; K] = core::array::from_fn(|i| &other.polys[i].0);
-        NttPolynomial(crate::simd::poly_inner_product(a, b))
+        NttPolynomial(poly_ops::inner_product(a, b))
     }
 
     /// Serialize to `K * 384` bytes (12-bit packing).

@@ -1,7 +1,10 @@
 use core::ops;
 
 use super::NttPolynomial;
-use crate::{CbdWidthParams, N, SYMBYTES, compress::CompressWidth, encode, ntt, sample::CbdWidth};
+use crate::{
+    CbdWidthParams, N, SYMBYTES, compress::CompressWidth, encode, ntt, sample::CbdWidth,
+    simd::poly_ops,
+};
 
 /// Polynomial in standard (coefficient) form over `R_q = Z_q[X]/(X^{256}+1)`.
 #[derive(Clone, Copy)]
@@ -22,7 +25,7 @@ impl Polynomial {
     }
 
     pub fn reduce(&mut self) {
-        crate::simd::poly_reduce(&mut self.0);
+        poly_ops::reduce(&mut self.0);
     }
 
     /// Compress to `D` bits and write to buffer.
@@ -102,7 +105,7 @@ impl<'b> ops::Add<&'b Polynomial> for &Polynomial {
     type Output = Polynomial;
     #[inline]
     fn add(self, rhs: &'b Polynomial) -> Polynomial {
-        Polynomial(crate::simd::poly_add(&self.0, &rhs.0))
+        Polynomial(poly_ops::add(&self.0, &rhs.0))
     }
 }
 
@@ -110,14 +113,14 @@ impl<'b> ops::Sub<&'b Polynomial> for &Polynomial {
     type Output = Polynomial;
     #[inline]
     fn sub(self, rhs: &'b Polynomial) -> Polynomial {
-        Polynomial(crate::simd::poly_sub(&self.0, &rhs.0))
+        Polynomial(poly_ops::sub(&self.0, &rhs.0))
     }
 }
 
 impl ops::AddAssign<&Self> for Polynomial {
     #[inline]
     fn add_assign(&mut self, rhs: &Self) {
-        crate::simd::poly_add_assign(&mut self.0, &rhs.0);
+        poly_ops::add_assign(&mut self.0, &rhs.0);
     }
 }
 

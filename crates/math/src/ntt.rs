@@ -2,18 +2,15 @@
 
 use crate::{
     N,
-    simd::{
-        Q64, centred, ntt_layer_fwd, ntt_layer_fwd_packed, ntt_layer_inv_nored,
-        ntt_layer_inv_nored_packed, pow_mod,
-    },
+    simd::{LaneWidth, get_lane_width, ntt, poly_ops},
 };
 
 macro_rules! ntt_layer {
     (fwd, $r:ident, $k:ident, $len:literal, $sw:literal) => {
-        ntt_layer_fwd::<$len, $sw>($r, &mut $k);
+        ntt::layer_fwd::<$len, $sw>($r, &mut $k);
     };
     (inv_nored, $r:ident, $k:ident, $len:literal, $sw:literal) => {
-        ntt_layer_inv_nored::<$len, $sw>($r, &mut $k);
+        ntt::layer_inv_nored::<$len, $sw>($r, &mut $k);
     };
 }
 
@@ -23,23 +20,20 @@ macro_rules! ntt_layer {
 /// `Simd<i16, $lanes>` vectors using block-deinterleave shuffles.
 /// This achieves full SIMD utilization for the small NTT layers
 /// (len = 2, 4, ...) that would otherwise waste register lanes.
-///
-/// On `AArch64`, `simd_swizzle!` compiles to `uzp1/uzp2` (deinterleave)
-/// and `zip1/zip2` (interleave) at the appropriate element granularity.
 macro_rules! ntt_layer_packed {
     (fwd, $r:ident, $k:ident, $len:literal, $lanes:literal) => {
-        ntt_layer_fwd_packed::<$len, $lanes>($r, &mut $k);
+        ntt::layer_fwd_packed::<$len, $lanes>($r, &mut $k);
     };
     (inv_nored, $r:ident, $k:ident, $len:literal, $lanes:literal) => {
-        ntt_layer_inv_nored_packed::<$len, $lanes>($r, &mut $k);
+        ntt::layer_inv_nored_packed::<$len, $lanes>($r, &mut $k);
     };
 }
 
 /// Dispatch one layer with the most efficient strategy:
 ///
-/// - When `len >= lanes`: use the regular `ntt_layer!` with `sw = min(len,
+/// - When `len >= lanes`: use the regular [`ntt_layer!`] with `sw = min(len,
 ///   lanes)`.
-/// - When `len < lanes`: use `ntt_layer_packed!` to pack multiple butterfly
+/// - When `len < lanes`: use [`ntt_layer_packed!`] to pack multiple butterfly
 ///   groups into full-width SIMD vectors.
 macro_rules! ntt_dispatch_layer {
     // len=128: always exceeds max supported lanes (64) → regular.
@@ -130,42 +124,48 @@ pub fn forward_ntt(r: &mut [i16; N]) {
 /// Inverse NTT (in-place). Bit-reversed in, standard order out,
 /// each coefficient scaled by Montgomery factor `R = 2^{16}`.
 ///
-/// Uses lazy Barrett reduction: an initial `poly_reduce` brings all
+/// Uses lazy Barrett reduction: an initial [`poly_ops::reduce`] brings all
 /// coefficients into `[-q/2, q/2]`, then layers 1–4 (len 2..16) run without
 /// per-butterfly Barrett reduction because `|a + b|` stays within i16 range (≤
-/// 27 312). A second `poly_reduce` after layer 4 restores the invariant for
-/// layers 5–7.
+/// 27 312). A second [`poly_ops::reduce`] after layer 4 restores the invariant
+/// for layers 5–7.
 pub fn inverse_ntt(r: &mut [i16; N]) {
-    const F: i16 = centred(pow_mod(2, 32, Q64) * pow_mod(128, Q64 - 2, Q64) % Q64);
+    const F: i16 = ntt::centred(
+        ntt::pow_mod(2, 32, ntt::Q64) * ntt::pow_mod(128, ntt::Q64 - 2, ntt::Q64) % ntt::Q64,
+    );
     macro_rules! body {
         ($lanes:tt) => {{
             let mut k = 127usize;
             // Reduce to [-q/2, q/2] so layers 1–4 cannot overflow i16.
-            crate::simd::poly_reduce(r);
+            poly_ops::reduce(r);
             ntt_dispatch_layer!(inv_nored, r, k, 2, $lanes);
             ntt_dispatch_layer!(inv_nored, r, k, 4, $lanes);
             ntt_dispatch_layer!(inv_nored, r, k, 8, $lanes);
             ntt_dispatch_layer!(inv_nored, r, k, 16, $lanes);
             // Reduce again: max value after 4 lazy layers ≈ 27 312.
-            crate::simd::poly_reduce(r);
+            poly_ops::reduce(r);
             ntt_dispatch_layer!(inv_nored, r, k, 32, $lanes);
             ntt_dispatch_layer!(inv_nored, r, k, 64, $lanes);
             ntt_dispatch_layer!(inv_nored, r, k, 128, $lanes);
         }};
     }
-    match crate::simd::get_lane_width() {
-        crate::simd::LaneWidth::W128Bit => body!(8),
-        crate::simd::LaneWidth::W256Bit => body!(16),
-        crate::simd::LaneWidth::W512Bit => body!(32),
-        crate::simd::LaneWidth::W1024Bit => body!(64),
+    match get_lane_width() {
+        LaneWidth::W128Bit => body!(8),
+        LaneWidth::W256Bit => body!(16),
+        LaneWidth::W512Bit => body!(32),
+        LaneWidth::W1024Bit => body!(64),
     }
-    crate::simd::poly_mul_scalar_montgomery(r, F);
+    poly_ops::mul_scalar_montgomery(r, F);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::reduce::{barrett_reduce, fqmul};
+    use crate::{
+        reduce::{barrett_reduce, fqmul},
+        set_lane_width,
+        simd::default_lane_width,
+    };
 
     #[test]
     fn ntt_inverse_ntt_roundtrip() {
@@ -243,8 +243,6 @@ mod tests {
 
     #[test]
     fn ntt_roundtrip_all_lane_widths() {
-        use crate::simd::{LaneWidth, default_lane_width, set_lane_width};
-
         let mut a = [0i16; N];
         for (i, c) in a.iter_mut().enumerate() {
             *c = (i % 13) as i16;
