@@ -113,14 +113,11 @@ impl CompressWidth for D5 {
         let (in_chunks, _) = t.as_chunks::<8>();
         let (out_chunks, _) = r.as_chunks_mut::<5>();
         for (o, chunk) in out_chunks.iter_mut().zip(in_chunks) {
-            let s = chunk.map(|x| x as u8);
-            *o = [
-                s[0] | (s[1] << 5),
-                (s[1] >> 3) | (s[2] << 2) | (s[3] << 7),
-                (s[3] >> 1) | (s[4] << 4),
-                (s[4] >> 4) | (s[5] << 1) | (s[6] << 6),
-                (s[6] >> 2) | (s[7] << 3),
-            ];
+            let mut packed = 0u64;
+            unroll!(i, (0, 1, 2, 3, 4, 5, 6, 7), {
+                packed |= (chunk[i] as u16 as u64) << (i * 5);
+            });
+            o.copy_from_slice(&packed.to_le_bytes()[..5]);
         }
     }
 
@@ -129,17 +126,12 @@ impl CompressWidth for D5 {
         let (in_chunks, _) = a.as_chunks::<5>();
         let (out_chunks, _) = t.as_chunks_mut::<8>();
         for (o, b) in out_chunks.iter_mut().zip(in_chunks) {
-            *o = [
-                (b[0] & 0x1F),
-                ((b[0] >> 5) | ((b[1] & 0x03) << 3)),
-                ((b[1] >> 2) & 0x1F),
-                ((b[1] >> 7) | ((b[2] & 0x0F) << 1)),
-                ((b[2] >> 4) | ((b[3] & 0x01) << 4)),
-                ((b[3] >> 1) & 0x1F),
-                ((b[3] >> 6) | ((b[4] & 0x07) << 2)),
-                (b[4] >> 3),
-            ]
-            .map(|x| x as i16);
+            let mut buf = [0u8; 8];
+            buf[..5].copy_from_slice(b);
+            let packed = u64::from_le_bytes(buf);
+            *o = unroll!(i, [0, 1, 2, 3, 4, 5, 6, 7], {
+                ((packed >> (i * 5)) & 0x1F) as i16
+            });
         }
         *r = crate::simd::poly_decompress_coeffs(&t, 5);
     }
@@ -151,15 +143,11 @@ impl CompressWidth for D10 {
         let (in_chunks, _) = t.as_chunks::<4>();
         let (out_chunks, _) = r.as_chunks_mut::<5>();
         for (o, chunk) in out_chunks.iter_mut().zip(in_chunks) {
-            let s = chunk.map(|x| x as u16);
-            *o = [
-                s[0],
-                ((s[0] >> 8) | (s[1] << 2)),
-                ((s[1] >> 6) | (s[2] << 4)),
-                ((s[2] >> 4) | (s[3] << 6)),
-                (s[3] >> 2),
-            ]
-            .map(|x| x as u8);
+            let mut packed = 0u64;
+            unroll!(i, (0, 1, 2, 3), {
+                packed |= (chunk[i] as u16 as u64) << (i * 10);
+            });
+            o.copy_from_slice(&packed.to_le_bytes()[..5]);
         }
     }
 
@@ -168,14 +156,10 @@ impl CompressWidth for D10 {
         let (in_chunks, _) = a.as_chunks::<5>();
         let (out_chunks, _) = t.as_chunks_mut::<4>();
         for (o, chunk) in out_chunks.iter_mut().zip(in_chunks) {
-            let b = chunk.map(|x| x as u16);
-            *o = [
-                (b[0] | ((b[1] & 0x03) << 8)),
-                ((b[1] >> 2) | ((b[2] & 0x0F) << 6)),
-                ((b[2] >> 4) | ((b[3] & 0x3F) << 4)),
-                ((b[3] >> 6) | (b[4] << 2)),
-            ]
-            .map(|x| x as i16);
+            let mut buf = [0u8; 8];
+            buf[..5].copy_from_slice(chunk);
+            let packed = u64::from_le_bytes(buf);
+            *o = unroll!(i, [0, 1, 2, 3], ((packed >> (i * 10)) & 0x3FF) as i16);
         }
         *r = crate::simd::poly_decompress_coeffs(&t, 10);
     }
@@ -187,21 +171,11 @@ impl CompressWidth for D11 {
         let (in_chunks, _) = t.as_chunks::<8>();
         let (out_chunks, _) = r.as_chunks_mut::<11>();
         for (o, chunk) in out_chunks.iter_mut().zip(in_chunks) {
-            let s = chunk.map(|x| x as u16);
-            *o = [
-                s[0],
-                ((s[0] >> 8) | (s[1] << 3)),
-                ((s[1] >> 5) | (s[2] << 6)),
-                (s[2] >> 2),
-                ((s[2] >> 10) | (s[3] << 1)),
-                ((s[3] >> 7) | (s[4] << 4)),
-                ((s[4] >> 4) | (s[5] << 7)),
-                (s[5] >> 1),
-                ((s[5] >> 9) | (s[6] << 2)),
-                ((s[6] >> 6) | (s[7] << 5)),
-                (s[7] >> 3),
-            ]
-            .map(|x| x as u8);
+            let mut packed = 0u128;
+            unroll!(i, (0, 1, 2, 3, 4, 5, 6, 7), {
+                packed |= (chunk[i] as u16 as u128) << (i * 11);
+            });
+            o.copy_from_slice(&packed.to_le_bytes()[..11]);
         }
     }
 
@@ -210,18 +184,12 @@ impl CompressWidth for D11 {
         let (in_chunks, _) = a.as_chunks::<11>();
         let (out_chunks, _) = t.as_chunks_mut::<8>();
         for (o, chunk) in out_chunks.iter_mut().zip(in_chunks) {
-            let b = chunk.map(|x| x as u16);
-            *o = [
-                (b[0] | ((b[1] & 0x07) << 8)),
-                ((b[1] >> 3) | ((b[2] & 0x3F) << 5)),
-                ((b[2] >> 6) | (b[3] << 2) | ((b[4] & 0x01) << 10)),
-                ((b[4] >> 1) | ((b[5] & 0x0F) << 7)),
-                ((b[5] >> 4) | ((b[6] & 0x7F) << 4)),
-                ((b[6] >> 7) | (b[7] << 1) | ((b[8] & 0x03) << 9)),
-                ((b[8] >> 2) | ((b[9] & 0x1F) << 6)),
-                ((b[9] >> 5) | (b[10] << 3)),
-            ]
-            .map(|x| x as i16);
+            let mut buf = [0u8; 16];
+            buf[..11].copy_from_slice(chunk);
+            let packed = u128::from_le_bytes(buf);
+            *o = unroll!(i, [0, 1, 2, 3, 4, 5, 6, 7], {
+                ((packed >> (i * 11)) & 0x7FF) as i16
+            });
         }
         *r = crate::simd::poly_decompress_coeffs(&t, 11);
     }

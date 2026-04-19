@@ -155,23 +155,21 @@ pub fn poly_basemul(a: &[i16; N], b: &[i16; N]) -> [i16; N] {
     super::dispatch_lanes!(poly_basemul_lanes(a, b))
 }
 
-/// Fused inner product: `sum_{k=0}^{K-1} basemul(a[k], b[k])`, Barrett-reduced.
+/// Fused inner product: `sum_{k=0}^{K-1} basemul(a[k], b[k])`.
 ///
-/// Keeps the accumulator in SOA (structure-of-arrays) form across all K
-/// iterations, performing only ONE AOS↔SOA conversion pair per block instead
-/// of K. This eliminates K-1 interleave/deinterleave passes, K-1 `poly_adds`,
-/// and K zero-inits compared to the loop `basemul + add_assign`.
+/// Uses 2-way deinterleave (real/imag separation) with an alternating-sign
+/// zeta table to handle both `+ζ` and `-ζ` sub-pairs in one vector. This
+/// halves the register pressure and shuffle work compared to 4-way
+/// deinterleave, eliminating register spilling for K=3 on NEON (32 registers).
 #[inline]
 pub fn poly_inner_product<const K: usize>(a: [&[i16; N]; K], b: [&[i16; N]; K]) -> [i16; N] {
     // Cannot use dispatch_lanes! because we have two const generics (K, L).
-    let mut result = match crate::simd::get_lane_width() {
+    match crate::simd::get_lane_width() {
         crate::simd::LaneWidth::W128Bit => poly_inner_product_lanes::<K, 8>(a, b),
         crate::simd::LaneWidth::W256Bit => poly_inner_product_lanes::<K, 16>(a, b),
         crate::simd::LaneWidth::W512Bit => poly_inner_product_lanes::<K, 32>(a, b),
         crate::simd::LaneWidth::W1024Bit => poly_inner_product_lanes::<K, 64>(a, b),
-    };
-    poly_reduce(&mut result);
-    result
+    }
 }
 
 /// Process `L` blocks in parallel using SIMD de-interleave/interleave for the
@@ -216,58 +214,61 @@ fn poly_basemul_lanes<const L: usize>(a: &[i16; N], b: &[i16; N]) -> [i16; N] {
     r
 }
 
-/// Fused inner product kernel: block-outermost, K-innermost loop.
+/// Alternating-sign zeta table for 2-way basemul decomposition.
 ///
-/// For each of the `N / (4 * L)` blocks, deinterleave both a[k] and b[k],
-/// accumulate basemul products in SOA-format SIMD registers, and interleave
-/// ONCE at the end. The K loop is const-generic so the compiler unrolls it.
-#[inline]
+/// `ZETAS_BASEMUL_2WAY[2*i] = +ZETAS[64+i]`, `ZETAS_BASEMUL_2WAY[2*i+1] =
+/// -ZETAS[64+i]`.
+///
+/// This allows a single SIMD vector to carry both `+ζ` and `-ζ` for adjacent
+/// sub-pairs, enabling 2-way deinterleave (1 `uzp` pair) instead of 4-way
+/// (4 `uzp` pairs) with no sign-handling overhead.
+const ZETAS_BASEMUL_2WAY: [i16; 128] = {
+    let mut out = [0i16; 128];
+    let mut i = 0;
+    while i < 64 {
+        out[2 * i] = crate::ntt::ZETAS[64 + i];
+        out[2 * i + 1] = -crate::ntt::ZETAS[64 + i];
+        i += 1;
+    }
+    out
+};
+
+/// Fused inner product kernel using 2-way deinterleave with Karatsuba and
+/// deferred z-multiply for reduced multiply pressure.
 fn poly_inner_product_lanes<const K: usize, const L: usize>(
     a: [&[i16; N]; K], b: [&[i16; N]; K],
 ) -> [i16; N] {
     let mut r = [0i16; N];
-    let zetas = &crate::ntt::ZETAS[64..];
 
     let (r_chunks, _) = r.as_chunks_mut::<L>();
-    for (bi, out) in (r_chunks.as_chunks_mut::<4>().0).iter_mut().enumerate() {
-        let z = Simd::<i16, L>::from_slice(&zetas[bi * L..]);
+    for (bi, out) in (r_chunks.as_chunks_mut::<2>().0).iter_mut().enumerate() {
+        let z = Simd::<i16, L>::from_slice(&ZETAS_BASEMUL_2WAY[bi * L..]);
 
-        let mut acc0 = Simd::<i16, L>::splat(0);
-        let mut acc1 = Simd::<i16, L>::splat(0);
-        let mut acc2 = Simd::<i16, L>::splat(0);
-        let mut acc3 = Simd::<i16, L>::splat(0);
+        let mut acc_re = Simd::<i16, L>::splat(0);
+        let mut acc_im = Simd::<i16, L>::splat(0);
+        let mut acc_im_z = Simd::<i16, L>::splat(0);
 
         for k in 0..K {
-            let (ak, _) = a[k].as_chunks::<L>();
-            let (bk, _) = b[k].as_chunks::<L>();
-            let ci = bi * 4; // base chunk index for this block
+            let ak = a[k].as_chunks::<L>().0;
+            let bk = b[k].as_chunks::<L>().0;
+            let ci = bi * 2;
 
-            // 4-way deinterleave (AOS→SOA) for a[k]
-            let (t0, t1) = Simd::from_array(ak[ci]).deinterleave(Simd::from_array(ak[ci + 1]));
-            let (t2, t3) = Simd::from_array(ak[ci + 2]).deinterleave(Simd::from_array(ak[ci + 3]));
-            let (a0, a2) = t0.deinterleave(t2);
-            let (a1, a3) = t1.deinterleave(t3);
+            let (a_re, a_im) = Simd::from_array(ak[ci]).deinterleave(Simd::from_array(ak[ci + 1]));
+            let (b_re, b_im) = Simd::from_array(bk[ci]).deinterleave(Simd::from_array(bk[ci + 1]));
 
-            // 4-way deinterleave (AOS→SOA) for b[k]
-            let (t0, t1) = Simd::from_array(bk[ci]).deinterleave(Simd::from_array(bk[ci + 1]));
-            let (t2, t3) = Simd::from_array(bk[ci + 2]).deinterleave(Simd::from_array(bk[ci + 3]));
-            let (b0, b2) = t0.deinterleave(t2);
-            let (b1, b3) = t1.deinterleave(t3);
+            let p_im = fqmul_vec(a_im, b_im);
+            let p_re = fqmul_vec(a_re, b_re);
+            let p_sum = fqmul_vec(a_re + a_im, b_re + b_im);
 
-            // Basemul and accumulate in SOA form
-            acc0 += fqmul_vec(fqmul_vec(a1, b1), z) + fqmul_vec(a0, b0);
-            acc1 += fqmul_vec(a0, b1) + fqmul_vec(a1, b0);
-            acc2 += fqmul_vec(fqmul_vec(a3, b3), -z) + fqmul_vec(a2, b2);
-            acc3 += fqmul_vec(a2, b3) + fqmul_vec(a3, b2);
+            acc_im_z += p_im;
+            acc_re += p_re;
+            acc_im += p_sum - p_re - p_im;
         }
 
-        // 4-way re-interleave (SOA→AOS): only once per block
-        let (lo02, hi02) = acc0.interleave(acc2);
-        let (lo13, hi13) = acc1.interleave(acc3);
-        let (out0, out1) = lo02.interleave(lo13);
-        let (out2, out3) = hi02.interleave(hi13);
+        acc_re += fqmul_vec(acc_im_z, z);
 
-        *out = [out0, out1, out2, out3].map(Into::into);
+        let (out0, out1) = acc_re.interleave(acc_im);
+        *out = [out0.into(), out1.into()];
     }
     r
 }
