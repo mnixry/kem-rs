@@ -1,6 +1,9 @@
 use core::simd::Simd;
 
-use super::kernels::{barrett_reduce_vec, compress_d_vec, decompress_d_vec, fqmul_vec};
+use super::{
+    ZETAS,
+    kernels::{barrett_reduce_vec, compress_d_vec, decompress_d_vec, fqmul_vec},
+};
 use crate::{N, Q};
 
 /// Barrett-reduce all `N` coefficients in-place.
@@ -180,7 +183,7 @@ fn poly_basemul_lanes<const L: usize>(a: &[i16; N], b: &[i16; N]) -> [i16; N] {
     for ((([a0, a1, a2, a3], [b0, b1, b2, b3]), z), out) in
         (a.as_chunks::<L>().0.as_chunks::<4>().0.iter())
             .zip(b.as_chunks::<L>().0.as_chunks::<4>().0.iter())
-            .zip(crate::ntt::ZETAS[64..].as_chunks::<L>().0.iter())
+            .zip(ZETAS[64..].as_chunks::<L>().0.iter())
             .zip(r.as_chunks_mut::<L>().0.as_chunks_mut::<4>().0.iter_mut())
     {
         // 4-way de-interleave (AOS→SOA): two passes of 2-way deinterleave
@@ -226,8 +229,8 @@ const ZETAS_BASEMUL_2WAY: [i16; 128] = {
     let mut out = [0i16; 128];
     let mut i = 0;
     while i < 64 {
-        out[2 * i] = crate::ntt::ZETAS[64 + i];
-        out[2 * i + 1] = -crate::ntt::ZETAS[64 + i];
+        out[2 * i] = ZETAS[64 + i];
+        out[2 * i + 1] = -ZETAS[64 + i];
         i += 1;
     }
     out
@@ -280,8 +283,6 @@ mod tests {
 
     #[test]
     fn simd_basemul_matches_scalar() {
-        use crate::ntt::ZETAS;
-
         let mut a = [0i16; N];
         let mut b = [0i16; N];
         for i in 0..N {

@@ -1,147 +1,53 @@
 //! Number-Theoretic Transform and base multiplication in `Z_q[X]/(X^2 - zeta)`.
 
-use core::simd::Simd;
-
-use crate::{N, simd::fqmul_vec};
-
-const Q64: i64 = crate::Q as i64;
-
-#[cfg_attr(coverage_nightly, coverage(off))]
-const fn pow_mod(mut base: i64, mut exp: i64, modulus: i64) -> i64 {
-    let mut result: i64 = 1;
-    base %= modulus;
-    while exp > 0 {
-        if exp & 1 == 1 {
-            result = result * base % modulus;
-        }
-        exp >>= 1;
-        base = base * base % modulus;
-    }
-    result
-}
-
-#[cfg_attr(coverage_nightly, coverage(off))]
-const fn bitrev7(x: usize) -> usize {
-    ((x >> 6) & 1)
-        | (((x >> 5) & 1) << 1)
-        | (((x >> 4) & 1) << 2)
-        | (((x >> 3) & 1) << 3)
-        | (((x >> 2) & 1) << 4)
-        | (((x >> 1) & 1) << 5)
-        | ((x & 1) << 6)
-}
-
-/// Centred representative of `val mod q` in `[-(q-1)/2, (q-1)/2]`.
-#[cfg_attr(coverage_nightly, coverage(off))]
-const fn centred(val: i64) -> i16 {
-    if val > Q64 / 2 {
-        (val - Q64) as i16
-    } else {
-        val as i16
-    }
-}
-
-/// Twiddle factors in Montgomery form, from primitive 512th root \zeta = 17,
-/// bit-reversed indexing.
-///
-/// `ZETAS[i] = \zeta^{BitRev_7(i)} * 2^{16}  (mod q)`, centred to signed.
-///
-/// Values match Appendix A of FIPS 203 (scaled into Montgomery domain).
-pub const ZETAS: [i16; 128] = {
-    const ZETA: i64 = 17;
-    const MONT: i64 = 1 << 16;
-
-    let mut zetas = [0i16; 128];
-    let mut i = 0;
-    while i < 128 {
-        let val = pow_mod(ZETA, bitrev7(i) as i64, Q64) * MONT % Q64;
-        zetas[i] = centred(val);
-        i += 1;
-    }
-    zetas
+use crate::{
+    N,
+    simd::{
+        Q64, centred, ntt_layer_fwd, ntt_layer_fwd_packed, ntt_layer_inv_nored,
+        ntt_layer_inv_nored_packed, pow_mod,
+    },
 };
 
-/// Single NTT butterfly layer. `$sw` (SIMD width) must divide `$len`.
-/// When `$sw == $len` the inner loop executes exactly once (no tail).
 macro_rules! ntt_layer {
-    (fwd, $r:ident, $k:ident, $len:literal, $sw:literal) => {{
-        let mut start = 0usize;
-        while start < N {
-            let zeta = ZETAS[$k];
-            $k += 1;
-            let (lo, hi) = $r[start..start + 2 * $len].split_at_mut($len);
-            let z = Simd::<i16, $sw>::splat(zeta);
-            let mut i = 0usize;
-            while i < $len {
-                let a = Simd::<i16, $sw>::from_slice(&lo[i..]);
-                let b = Simd::<i16, $sw>::from_slice(&hi[i..]);
-                let t = fqmul_vec(z, b);
-                (a + t).copy_to_slice(&mut lo[i..i + $sw]);
-                (a - t).copy_to_slice(&mut hi[i..i + $sw]);
-                i += $sw;
-            }
-            start += 2 * $len;
-        }
-    }};
-    // Inverse butterfly WITHOUT Barrett reduction on the sum.
-    // Caller must ensure |a + b| and |b - a| fit in i16 (no wrapping).
-    (inv_nored, $r:ident, $k:ident, $len:literal, $sw:literal) => {{
-        let mut start = 0usize;
-        while start < N {
-            let zeta = ZETAS[$k];
-            $k = $k.wrapping_sub(1);
-            let (lo, hi) = $r[start..start + 2 * $len].split_at_mut($len);
-            let z = Simd::<i16, $sw>::splat(zeta);
-            let mut i = 0usize;
-            while i < $len {
-                let a = Simd::<i16, $sw>::from_slice(&lo[i..]);
-                let b = Simd::<i16, $sw>::from_slice(&hi[i..]);
-                (a + b).copy_to_slice(&mut lo[i..i + $sw]);
-                fqmul_vec(z, b - a).copy_to_slice(&mut hi[i..i + $sw]);
-                i += $sw;
-            }
-            start += 2 * $len;
-        }
-    }};
+    (fwd, $r:ident, $k:ident, $len:literal, $sw:literal) => {
+        ntt_layer_fwd::<$len, $sw>($r, &mut $k);
+    };
+    (inv_nored, $r:ident, $k:ident, $len:literal, $sw:literal) => {
+        ntt_layer_inv_nored::<$len, $sw>($r, &mut $k);
+    };
 }
 
-/// Dispatch one layer with `simd_width = min(len, lanes)`.
+/// Packed NTT butterfly layer for small layers where `$len < $lanes`.
 ///
-/// Pattern-matching computes the minimum at macro-expansion time:
-/// - `len = 128` always exceeds max supported lanes (64) -> use lanes.
-/// - `len in {2, 4, 8}` always fits in min supported lanes (8) -> use len.
-/// - Remaining lengths match specific lane values for the crossover.
+/// Packs `$lanes / $len` adjacent butterfly groups into full-width
+/// `Simd<i16, $lanes>` vectors using block-deinterleave shuffles.
+/// This achieves full SIMD utilization for the small NTT layers
+/// (len = 2, 4, ...) that would otherwise waste register lanes.
+///
+/// On `AArch64`, `simd_swizzle!` compiles to `uzp1/uzp2` (deinterleave)
+/// and `zip1/zip2` (interleave) at the appropriate element granularity.
+macro_rules! ntt_layer_packed {
+    (fwd, $r:ident, $k:ident, $len:literal, $lanes:literal) => {
+        ntt_layer_fwd_packed::<$len, $lanes>($r, &mut $k);
+    };
+    (inv_nored, $r:ident, $k:ident, $len:literal, $lanes:literal) => {
+        ntt_layer_inv_nored_packed::<$len, $lanes>($r, &mut $k);
+    };
+}
+
+/// Dispatch one layer with the most efficient strategy:
+///
+/// - When `len >= lanes`: use the regular `ntt_layer!` with `sw = min(len,
+///   lanes)`.
+/// - When `len < lanes`: use `ntt_layer_packed!` to pack multiple butterfly
+///   groups into full-width SIMD vectors.
 macro_rules! ntt_dispatch_layer {
-    ($dir:ident, $r:ident, $k:ident, 128, $lanes:literal) => {
+    // len=128: always exceeds max supported lanes (64) → regular.
+    ($dir:ident, $r:ident, $k:ident, 128, $lanes:tt) => {
         ntt_layer!($dir, $r, $k, 128, $lanes);
     };
-    ($dir:ident, $r:ident, $k:ident, 2, $lanes:literal) => {
-        ntt_layer!($dir, $r, $k, 2, 2);
-    };
-    ($dir:ident, $r:ident, $k:ident, 4, $lanes:literal) => {
-        ntt_layer!($dir, $r, $k, 4, 4);
-    };
-    ($dir:ident, $r:ident, $k:ident, 8, $lanes:literal) => {
-        ntt_layer!($dir, $r, $k, 8, 8);
-    };
-    // len = 16: min(16, lanes)
-    ($dir:ident, $r:ident, $k:ident, 16, 8) => {
-        ntt_layer!($dir, $r, $k, 16, 8);
-    };
-    ($dir:ident, $r:ident, $k:ident, 16, $lanes:literal) => {
-        ntt_layer!($dir, $r, $k, 16, 16);
-    };
-    // len = 32: min(32, lanes)
-    ($dir:ident, $r:ident, $k:ident, 32, 8) => {
-        ntt_layer!($dir, $r, $k, 32, 8);
-    };
-    ($dir:ident, $r:ident, $k:ident, 32, 16) => {
-        ntt_layer!($dir, $r, $k, 32, 16);
-    };
-    ($dir:ident, $r:ident, $k:ident, 32, $lanes:literal) => {
-        ntt_layer!($dir, $r, $k, 32, 32);
-    };
-    // len = 64: min(64, lanes)
+
+    // len=64: equals max lanes (64), never less → regular with sw = min(64, lanes).
     ($dir:ident, $r:ident, $k:ident, 64, 8) => {
         ntt_layer!($dir, $r, $k, 64, 8);
     };
@@ -151,15 +57,58 @@ macro_rules! ntt_dispatch_layer {
     ($dir:ident, $r:ident, $k:ident, 64, 32) => {
         ntt_layer!($dir, $r, $k, 64, 32);
     };
-    ($dir:ident, $r:ident, $k:ident, 64, $lanes:literal) => {
+    ($dir:ident, $r:ident, $k:ident, 64, $lanes:tt) => {
         ntt_layer!($dir, $r, $k, 64, 64);
+    };
+
+    // len=32: regular when lanes ≤ 32, packed when lanes > 32.
+    ($dir:ident, $r:ident, $k:ident, 32, 8) => {
+        ntt_layer!($dir, $r, $k, 32, 8);
+    };
+    ($dir:ident, $r:ident, $k:ident, 32, 16) => {
+        ntt_layer!($dir, $r, $k, 32, 16);
+    };
+    ($dir:ident, $r:ident, $k:ident, 32, 32) => {
+        ntt_layer!($dir, $r, $k, 32, 32);
+    };
+    ($dir:ident, $r:ident, $k:ident, 32, $lanes:tt) => {
+        ntt_layer_packed!($dir, $r, $k, 32, $lanes);
+    };
+
+    // len=16: regular when lanes ≤ 16, packed when lanes > 16.
+    ($dir:ident, $r:ident, $k:ident, 16, 8) => {
+        ntt_layer!($dir, $r, $k, 16, 8);
+    };
+    ($dir:ident, $r:ident, $k:ident, 16, 16) => {
+        ntt_layer!($dir, $r, $k, 16, 16);
+    };
+    ($dir:ident, $r:ident, $k:ident, 16, $lanes:tt) => {
+        ntt_layer_packed!($dir, $r, $k, 16, $lanes);
+    };
+
+    // len=8: regular when lanes = 8, packed when lanes > 8.
+    ($dir:ident, $r:ident, $k:ident, 8, 8) => {
+        ntt_layer!($dir, $r, $k, 8, 8);
+    };
+    ($dir:ident, $r:ident, $k:ident, 8, $lanes:tt) => {
+        ntt_layer_packed!($dir, $r, $k, 8, $lanes);
+    };
+
+    // len=4: always less than min lanes (8) → packed.
+    ($dir:ident, $r:ident, $k:ident, 4, $lanes:tt) => {
+        ntt_layer_packed!($dir, $r, $k, 4, $lanes);
+    };
+
+    // len=2: always less than min lanes (8) → packed.
+    ($dir:ident, $r:ident, $k:ident, 2, $lanes:tt) => {
+        ntt_layer_packed!($dir, $r, $k, 2, $lanes);
     };
 }
 
 /// Forward NTT (in-place). Standard order in, bit-reversed order out.
 pub fn forward_ntt(r: &mut [i16; N]) {
     macro_rules! body {
-        ($lanes:literal) => {{
+        ($lanes:tt) => {{
             let mut k = 1usize;
             ntt_dispatch_layer!(fwd, r, k, 128, $lanes);
             ntt_dispatch_layer!(fwd, r, k, 64, $lanes);
@@ -189,7 +138,7 @@ pub fn forward_ntt(r: &mut [i16; N]) {
 pub fn inverse_ntt(r: &mut [i16; N]) {
     const F: i16 = centred(pow_mod(2, 32, Q64) * pow_mod(128, Q64 - 2, Q64) % Q64);
     macro_rules! body {
-        ($lanes:literal) => {{
+        ($lanes:tt) => {{
             let mut k = 127usize;
             // Reduce to [-q/2, q/2] so layers 1–4 cannot overflow i16.
             crate::simd::poly_reduce(r);
