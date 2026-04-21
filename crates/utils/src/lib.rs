@@ -3,6 +3,7 @@
 
 pub mod measure;
 pub mod profiler;
+
 pub use criterion;
 use criterion::Criterion;
 
@@ -17,9 +18,15 @@ pub fn criterion_config() -> CriterionConfig {
         eprintln!("Benchmark has been pinned to core {}", first_core.id);
     }
 
-    criterion::Criterion::default()
-        .with_profiler(profiler::PProfProfiler::new(1997))
-        .with_measurement(measure::CPUTime)
+    let mut config = Criterion::default().with_measurement(measure::CPUTime);
+    if let Some(freq) = std::env::var("PPROF_FREQUENCY")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .filter(|&f| f > 0)
+    {
+        config = config.with_profiler(profiler::PProfProfiler::new(freq));
+    }
+    config
 }
 
 #[cfg(test)]
