@@ -7,6 +7,11 @@ runs:
       with:
         diagnostic-endpoint: ""
         summarize: false
+        extra-conf: |
+          always-allow-substitutes = false
+          http-connections = 0
+          keep-going = true
+          narinfo-cache-negative-ttl = 0
     - uses: DeterminateSystems/magic-nix-cache-action@main
       with:
         diff-store: true

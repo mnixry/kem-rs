@@ -1,4 +1,5 @@
 {
+  # spell-checker: disable
   inputs = {
     self.submodules = true;
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
@@ -64,7 +65,8 @@
                     "${rust}/lib/rustlib/src/rust/library/Cargo.lock"
                   ];
                 };
-                env.RUSTFLAGS = "-Ctarget-cpu=${builtins.readFile targetCpu}";
+                CARGO_BUILD_RUSTFLAGS = "-Ctarget-cpu=${builtins.readFile targetCpu}";
+                env.RUSTFLAGS = CARGO_BUILD_RUSTFLAGS;
               }
             );
           cargoArtifacts = craneLib.buildDepsOnly craneCommonArgs;
