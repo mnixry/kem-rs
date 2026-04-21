@@ -6,7 +6,7 @@
 use kem_hash::SHAKE128_RATE;
 use kem_math::{
     ByteArray, CbdWidth, CompressWidth, D4, D5, D10, D11, Eta2, Eta3, NttMatrix, NttPolynomial,
-    NttVector, Polynomial, Vector,
+    NttVector, Polynomial, Vector, unroll,
 };
 pub use kem_math::{N, POLYBYTES, Q, SYMBYTES};
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, Unaligned};
@@ -216,24 +216,30 @@ fn rej_sample_xof<const L: usize, const K: usize>(
     let mut counters = [0usize; L];
 
     while counters.iter().any(|&c| c < N) {
-        let bufs = reader.squeeze_blocks();
+        let words = reader.squeeze_words();
         for lane in 0..L {
             if counters[lane] >= N {
                 continue;
             }
-            for chunk in 0..NUM_CHUNKS {
-                let base_pos = chunk * BYTES_PER_CHUNK;
-                for t in 0..TRIPLETS_PER_CHUNK {
-                    let pos = base_pos + t * 3;
-                    let val1 = u16::from_le_bytes([bufs[pos][lane], bufs[pos + 1][lane]]) & 0x0FFF;
-                    coefficients[lane][counters[lane]] = val1.cast_signed();
-                    counters[lane] += usize::from(val1 < Q as u16);
 
-                    let val2 = u16::from_le_bytes([bufs[pos + 1][lane], bufs[pos + 2][lane]]) >> 4;
-                    coefficients[lane][counters[lane]] = val2.cast_signed();
-                    counters[lane] += usize::from(val2 < Q as u16);
-                }
-                if counters[lane] >= N {
+            let coefficients = &mut coefficients[lane];
+            let counter = &mut counters[lane];
+
+            for chunk in 0..NUM_CHUNKS {
+                let base_pos = chunk * (BYTES_PER_CHUNK / 8);
+                let words = unroll!(i, [0, 1, 2], words[base_pos + i][lane].to_le_bytes());
+                let flattened = words.as_flattened();
+                unroll!(i, (0, 1, 2, 3, 4, 5, 6, 7), {
+                    let val1 =
+                        u16::from_le_bytes([flattened[i * 3], flattened[i * 3 + 1]]) & 0x0FFF;
+                    coefficients[*counter] = val1.cast_signed();
+                    *counter += usize::from(val1 < Q as u16);
+                    let val2 =
+                        u16::from_le_bytes([flattened[i * 3 + 1], flattened[i * 3 + 2]]) >> 4;
+                    coefficients[*counter] = val2.cast_signed();
+                    *counter += usize::from(val2 < Q as u16);
+                });
+                if *counter >= N {
                     break;
                 }
             }
@@ -252,7 +258,7 @@ macro_rules! gen_matrix_body {
     // K=2, KK=4: single f1600<4> batch
     (2, $seed:expr, $trans:expr, $a:expr) => {
         match kem_math::get_lane_width() {
-            kem_math::LaneWidth::W128Bit => kem_math::unroll!(j, (0, 1), {
+            kem_math::LaneWidth::W128Bit => unroll!(j, (0, 1), {
                 rej_sample_xof::<2, 2>($seed, $trans, 2 * j, &mut $a);
             }),
             _ => {
@@ -263,10 +269,10 @@ macro_rules! gen_matrix_body {
     // K=3, KK=9: f1600<8> for first 8, f1600<1> for the tail
     (3, $seed:expr, $trans:expr, $a:expr) => {
         match kem_math::get_lane_width() {
-            kem_math::LaneWidth::W128Bit => kem_math::unroll!(j, (0, 1, 2, 3), {
+            kem_math::LaneWidth::W128Bit => unroll!(j, (0, 1, 2, 3), {
                 rej_sample_xof::<2, 3>($seed, $trans, 2 * j, &mut $a);
             }),
-            kem_math::LaneWidth::W256Bit => kem_math::unroll!(j, (0, 1), {
+            kem_math::LaneWidth::W256Bit => unroll!(j, (0, 1), {
                 rej_sample_xof::<4, 3>($seed, $trans, 4 * j, &mut $a);
             }),
             _ => {
@@ -278,13 +284,13 @@ macro_rules! gen_matrix_body {
     // K=4, KK=16: two f1600<8> batches
     (4, $seed:expr, $trans:expr, $a:expr) => {
         match kem_math::get_lane_width() {
-            kem_math::LaneWidth::W128Bit => kem_math::unroll!(j, (0, 1, 2, 3, 4, 5, 6, 7), {
+            kem_math::LaneWidth::W128Bit => unroll!(j, (0, 1, 2, 3, 4, 5, 6, 7), {
                 rej_sample_xof::<2, 4>($seed, $trans, 2 * j, &mut $a);
             }),
-            kem_math::LaneWidth::W256Bit => kem_math::unroll!(j, (0, 1, 2, 3), {
+            kem_math::LaneWidth::W256Bit => unroll!(j, (0, 1, 2, 3), {
                 rej_sample_xof::<4, 4>($seed, $trans, 4 * j, &mut $a);
             }),
-            kem_math::LaneWidth::W512Bit => kem_math::unroll!(j, (0, 1), {
+            kem_math::LaneWidth::W512Bit => unroll!(j, (0, 1), {
                 rej_sample_xof::<8, 4>($seed, $trans, 8 * j, &mut $a);
             }),
             kem_math::LaneWidth::W1024Bit => {

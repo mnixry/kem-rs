@@ -1,7 +1,7 @@
 //! Keccak / SHA-3 benchmarks for perf profiling.
 //!
 //! Covers scalar hashes (`hash_g`, `hash_h`, `rkprf`) and the parallel
-//! SIMD paths (`xof_absorb`, `squeeze_blocks`, `prf_batch`) at various
+//! SIMD paths (`xof_absorb`, `squeeze_words`, `prf_batch`) at various
 //! lane widths.
 
 use core::hint::black_box;
@@ -60,11 +60,11 @@ fn bench_xof(c: &mut kem_utils::CriterionConfig) {
         });
     });
 
-    g.bench_function("squeeze_blocks_4", |b| {
+    g.bench_function("squeeze_words_4", |b| {
         let indices = [(0, 0), (0, 1), (1, 0), (1, 1)];
         b.iter_batched(
             || kem_hash::xof::xof_absorb(&seed, indices),
-            |mut reader| black_box(reader.squeeze_blocks()),
+            |mut reader| black_box(reader.squeeze_words()),
             kem_utils::criterion::BatchSize::SmallInput,
         );
     });
@@ -73,9 +73,9 @@ fn bench_xof(c: &mut kem_utils::CriterionConfig) {
         let indices = [(0, 0), (0, 1), (1, 0), (1, 1)];
         b.iter(|| {
             let mut reader = kem_hash::xof::xof_absorb(black_box(&seed), black_box(indices));
-            black_box(reader.squeeze_blocks());
-            black_box(reader.squeeze_blocks());
-            black_box(reader.squeeze_blocks());
+            black_box(reader.squeeze_words());
+            black_box(reader.squeeze_words());
+            black_box(reader.squeeze_words());
         });
     });
 

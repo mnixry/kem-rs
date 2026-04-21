@@ -40,10 +40,10 @@ fn xof_4_lanes_matches_scalar() {
     let mut outputs: [Vec<u8>; 4] = core::array::from_fn(|_| Vec::with_capacity(total_bytes));
 
     for _ in 0..n_squeezes {
-        let blocks = reader.squeeze_blocks();
+        let words = reader.squeeze_words();
         for lane in 0..4 {
-            for block in blocks {
-                outputs[lane].push(block[lane]);
+            for word in &words {
+                outputs[lane].extend_from_slice(&word[lane].to_le_bytes());
             }
         }
     }
@@ -63,11 +63,12 @@ fn xof_2_lanes_matches_scalar() {
     let indices = [(0, 0), (1, 1)];
 
     let mut reader = xof_absorb(&seed, indices);
-    let blocks = reader.squeeze_blocks();
+    let words = reader.squeeze_words();
 
     for (lane_idx, &(x, y)) in indices.iter().enumerate() {
         let expected = scalar_shake128_squeeze(&seed, x, y, 1);
-        let lane_bytes: [u8; SHAKE128_RATE] = core::array::from_fn(|pos| blocks[pos][lane_idx]);
+        let lane_bytes: [u8; SHAKE128_RATE] =
+            core::array::from_fn(|pos| words[pos / 8][lane_idx].to_le_bytes()[pos % 8]);
         assert_eq!(
             &lane_bytes[..],
             &expected[..SHAKE128_RATE],
@@ -83,11 +84,12 @@ fn xof_various_seeds() {
         let indices = [(tag, 0), (0, tag), (tag, tag), (0, 0)];
 
         let mut reader = xof_absorb(&seed, indices);
-        let blocks = reader.squeeze_blocks();
+        let words = reader.squeeze_words();
 
         for (lane_idx, &(x, y)) in indices.iter().enumerate() {
             let expected = scalar_shake128_squeeze(&seed, x, y, 1);
-            let lane_bytes: [u8; SHAKE128_RATE] = core::array::from_fn(|pos| blocks[pos][lane_idx]);
+            let lane_bytes: [u8; SHAKE128_RATE] =
+                core::array::from_fn(|pos| words[pos / 8][lane_idx].to_le_bytes()[pos % 8]);
             assert_eq!(
                 &lane_bytes[..],
                 &expected[..SHAKE128_RATE],
