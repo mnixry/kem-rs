@@ -50,9 +50,20 @@
             // (
               let
                 targetCpu = pkgs.runCommandLocal "rust-current-target-cpu" { buildInputs = [ rust ]; } ''
-                  rustc --print target-cpus \
-                    | sed -nE 's/.*native.*\(currently ([^)]+)\).*/\1/p' \
-                    | tee $out
+                  case "$(uname -m)" in
+                    x86_64|amd64)
+                      cpu="$(
+                        ld.so --help 2>/dev/null |
+                          sed -nE 's/^  (x86-64-v[234]) \(supported.*$/\1/p' |
+                          head -n1
+                      )"
+                      echo "''${cpu:-x86-64}"
+                      ;;
+                    *)
+                      rustc --print target-cpus |
+                        sed -nE 's/.*native.*\(currently ([^)]+)\).*/\1/p'
+                      ;;
+                  esac | tee "$out"
                 '';
               in
               rec {
