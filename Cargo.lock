@@ -738,6 +738,10 @@ name = "kem-math"
 version = "0.1.0"
 dependencies = [
  "kem-utils",
+ "prettyplease",
+ "proc-macro2",
+ "quote",
+ "syn",
  "zeroize",
 ]
 

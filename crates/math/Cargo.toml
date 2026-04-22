@@ -18,3 +18,10 @@ bench = false
 [[bench]]
 harness = false
 name    = "primitives"
+
+[build-dependencies]
+prettyplease = "0.2.37"
+proc-macro2 = "1.0.106"
+quote = "1.0.45"
+syn = "2.0.117"
+

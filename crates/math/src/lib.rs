@@ -29,21 +29,7 @@ pub use sample::{CbdWidth, CbdWidthParams, Eta2, Eta3, reject_uniform};
 pub use simd::{LaneWidth, get_lane_width, set_lane_width};
 use zeroize::Zeroize;
 
-#[macro_export]
-macro_rules! unroll {
-    ($var:ident, [ $($i:expr),* $(,)? ], $body:expr) => {[
-        $({
-            let $var = $i;
-            $body
-        },)*
-    ]};
-    ($var:ident, ( $($i:expr),* $(,)? ), $body:tt) => {{
-        $(
-            let $var = $i;
-            $body;
-        )*
-    }};
-}
+pub mod macros;
 
 pub trait ByteArray:
     AsRef<[u8]> + AsMut<[u8]> + Clone + core::fmt::Debug + Zeroize + Send + Sync + 'static {
@@ -71,30 +57,3 @@ pub const SYMBYTES: usize = 32;
 
 /// Size in bytes of a serialized polynomial (12 bits * 256 / 8).
 pub const POLYBYTES: usize = 384;
-
-#[cfg(test)]
-mod tests {
-
-    #[test]
-    fn test_unroll() {
-        let mut sum = 0;
-        unroll!(i, (1, 2, 3, 4, 5), {
-            sum += i;
-        });
-        assert_eq!(sum, 15);
-    }
-
-    #[test]
-    fn test_unroll_assign() {
-        let (sum, result) = const {
-            let mut sum = 0;
-            let result = unroll!(i, [1, 2, 3, 4, 5], {
-                sum += i;
-                sum
-            });
-            (sum, result)
-        };
-        assert_eq!(sum, 15);
-        assert_eq!(result, [1, 3, 6, 10, 15]);
-    }
-}
