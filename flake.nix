@@ -56,7 +56,12 @@
                 '';
               in
               rec {
-                src = ./.;
+                src =
+                  with lib.fileset;
+                  (toSource {
+                    root = ./.;
+                    fileset = difference ./. ./.cargo/config.toml;
+                  });
                 strictDeps = true;
                 cargoVendorDir = craneLib.vendorMultipleCargoDeps {
                   inherit (craneLib.findCargoFiles src) cargoConfigs;
