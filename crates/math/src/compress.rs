@@ -6,7 +6,7 @@
 //! D4/D5/D10/D11 use Barrett reciprocal multiplication in SIMD to replace
 //! per-coefficient scalar u32 division by Q.
 
-use crate::{N, Q, SYMBYTES, simd::poly_ops, unroll};
+use crate::{N, Q, SYMBYTES, simd::poly_ops};
 
 mod sealed {
     pub trait Sealed {}
@@ -70,7 +70,7 @@ impl CompressWidth for D1 {
         let (chunks, _) = t.as_chunks::<8>();
         for (byte, chunk) in r.iter_mut().zip(chunks) {
             let mut b = 0u8;
-            unroll!(j, (0, 1, 2, 3, 4, 5, 6, 7), {
+            unroll!(j in (..8), {
                 b |= (chunk[j] as u8) << j;
             });
             *byte = b;
@@ -80,7 +80,7 @@ impl CompressWidth for D1 {
     fn decompress_poly(r: &mut [i16; N], msg: &[u8]) {
         let (chunks, _) = r.as_chunks_mut::<8>();
         for (chunk, &byte) in chunks.iter_mut().zip(msg) {
-            *chunk = unroll!(j, [0, 1, 2, 3, 4, 5, 6, 7], {
+            *chunk = unroll!(j in [..8], {
                 let mask = -(((byte >> j) & 1) as i16);
                 mask & ((Q + 1) / 2)
             });
@@ -114,7 +114,7 @@ impl CompressWidth for D5 {
         let (out_chunks, _) = r.as_chunks_mut::<5>();
         for (o, chunk) in out_chunks.iter_mut().zip(in_chunks) {
             let mut packed = 0u64;
-            unroll!(i, (0, 1, 2, 3, 4, 5, 6, 7), {
+            unroll!(i in (..8), {
                 packed |= (chunk[i] as u16 as u64) << (i * 5);
             });
             o.copy_from_slice(&packed.to_le_bytes()[..5]);
@@ -129,7 +129,7 @@ impl CompressWidth for D5 {
             let mut buf = [0u8; 8];
             buf[..5].copy_from_slice(b);
             let packed = u64::from_le_bytes(buf);
-            *o = unroll!(i, [0, 1, 2, 3, 4, 5, 6, 7], {
+            *o = unroll!(i in [..8], {
                 ((packed >> (i * 5)) & 0x1F) as i16
             });
         }
@@ -144,7 +144,7 @@ impl CompressWidth for D10 {
         let (out_chunks, _) = r.as_chunks_mut::<5>();
         for (o, chunk) in out_chunks.iter_mut().zip(in_chunks) {
             let mut packed = 0u64;
-            unroll!(i, (0, 1, 2, 3), {
+            unroll!(i in (..4), {
                 packed |= (chunk[i] as u16 as u64) << (i * 10);
             });
             o.copy_from_slice(&packed.to_le_bytes()[..5]);
@@ -159,7 +159,7 @@ impl CompressWidth for D10 {
             let mut buf = [0u8; 8];
             buf[..5].copy_from_slice(chunk);
             let packed = u64::from_le_bytes(buf);
-            *o = unroll!(i, [0, 1, 2, 3], ((packed >> (i * 10)) & 0x3FF) as i16);
+            *o = unroll!(i in [..4], ((packed >> (i * 10)) & 0x3FF) as i16);
         }
         *r = poly_ops::decompress_coeffs(&t, 10);
     }
@@ -172,7 +172,7 @@ impl CompressWidth for D11 {
         let (out_chunks, _) = r.as_chunks_mut::<11>();
         for (o, chunk) in out_chunks.iter_mut().zip(in_chunks) {
             let mut packed = 0u128;
-            unroll!(i, (0, 1, 2, 3, 4, 5, 6, 7), {
+            unroll!(i in (..8), {
                 packed |= (chunk[i] as u16 as u128) << (i * 11);
             });
             o.copy_from_slice(&packed.to_le_bytes()[..11]);
@@ -187,7 +187,7 @@ impl CompressWidth for D11 {
             let mut buf = [0u8; 16];
             buf[..11].copy_from_slice(chunk);
             let packed = u128::from_le_bytes(buf);
-            *o = unroll!(i, [0, 1, 2, 3, 4, 5, 6, 7], {
+            *o = unroll!(i in [..8], {
                 ((packed >> (i * 11)) & 0x7FF) as i16
             });
         }

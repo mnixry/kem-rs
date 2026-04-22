@@ -1,6 +1,6 @@
 //! Deterministic sampling: sealed CBD noise traits and rejection-uniform.
 
-use crate::{ByteArray, N, Q, unroll};
+use crate::{ByteArray, N, Q};
 
 mod sealed {
     pub trait Sealed {}
@@ -45,7 +45,7 @@ impl CbdWidth for Eta2 {
         for (chunk, &buf_chunk) in r_chunks.iter_mut().zip(buf_chunks) {
             let t = u32::from_le_bytes(buf_chunk);
             let d = (t & 0x5555_5555) + ((t >> 1) & 0x5555_5555);
-            *chunk = unroll!(j, [0, 1, 2, 3, 4, 5, 6, 7], {
+            *chunk = unroll!(j in [..8], {
                 let a = ((d >> (4 * j)) & 3) as i16;
                 let b = ((d >> (4 * j + 2)) & 3) as i16;
                 a - b
@@ -63,7 +63,7 @@ impl CbdWidth for Eta3 {
         for (chunk, &[b0, b1, b2]) in r_chunks.iter_mut().zip(buf_chunks) {
             let t = u32::from_le_bytes([b0, b1, b2, 0]) & 0x00FF_FFFF;
             let d = (t & 0x0024_9249) + ((t >> 1) & 0x0024_9249) + ((t >> 2) & 0x0024_9249);
-            *chunk = unroll!(j, [0, 1, 2, 3], {
+            *chunk = unroll!(j in [..4], {
                 let a = ((d >> (6 * j)) & 7) as i16;
                 let b = ((d >> (6 * j + 3)) & 7) as i16;
                 a - b

@@ -15,6 +15,9 @@
     clippy::many_single_char_names
 )]
 
+#[macro_use]
+pub mod macros;
+
 mod compress;
 mod encode;
 mod ntt;
@@ -28,8 +31,6 @@ pub use poly::{NttMatrix, NttPolynomial, NttVector, Polynomial, Vector};
 pub use sample::{CbdWidth, CbdWidthParams, Eta2, Eta3, reject_uniform};
 pub use simd::{LaneWidth, get_lane_width, set_lane_width};
 use zeroize::Zeroize;
-
-pub mod macros;
 
 pub trait ByteArray:
     AsRef<[u8]> + AsMut<[u8]> + Clone + core::fmt::Debug + Zeroize + Send + Sync + 'static {

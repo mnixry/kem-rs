@@ -45,22 +45,6 @@ const RC: [u64; 24] = [
     0x8000_0000_8000_8008,
 ];
 
-macro_rules! unroll_n {
-    (5, $var:ident, $body:expr) => {
-        unroll!($var, (0, 1, 2, 3, 4), $body);
-    };
-    (24, $var:ident, $body:expr) => {
-        unroll!(
-            $var,
-            (
-                0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
-                23
-            ),
-            $body
-        );
-    };
-}
-
 pub trait Arithmetics:
     Copy
     + Default
@@ -103,32 +87,32 @@ pub fn f1600<T: Arithmetics>(state: &mut [T; PLEN]) {
         let mut array = [T::default(); 5];
 
         // Theta
-        unroll_n!(5, x, {
-            unroll_n!(5, y, {
+        unroll!(x in (..5), {
+            unroll!(y in (..5), {
                 array[x] ^= state[5 * y + x];
             });
         });
-        unroll_n!(5, x, {
+        unroll!(x in (..5), {
             let t1 = array[(x + 4) % 5];
             let t2 = array[(x + 1) % 5].rotate_left(1);
-            unroll_n!(5, y, {
+            unroll!(y in (..5), {
                 state[5 * y + x] ^= t1 ^ t2;
             });
         });
 
         // Rho and Pi
         let mut last = state[1];
-        unroll_n!(24, i, {
+        unroll!(i in (..24), {
             array[0] = state[PI[i]];
             state[PI[i]] = last.rotate_left(RHO[i]);
             last = array[0];
         });
 
         // Chi
-        unroll_n!(5, y_step, {
+        unroll!(y_step in (..5), {
             let y = 5 * y_step;
             array.copy_from_slice(&state[y..y + 5]);
-            unroll_n!(5, x, {
+            unroll!(x in (..5), {
                 state[y + x] = array[x] ^ (!array[(x + 1) % 5] & array[(x + 2) % 5]);
             });
         });
@@ -142,7 +126,7 @@ pub fn f1600<T: Arithmetics>(state: &mut [T; PLEN]) {
 #[inline]
 pub fn absorb_seed<T: Arithmetics>(state: &mut [T; PLEN], seed: &[u8; 32]) {
     let (chunks, _) = seed.as_chunks();
-    unroll!(i, (0, 1, 2, 3), {
+    unroll!(i in (..4), {
         state[i] = T::load_u64(u64::from_le_bytes(chunks[i]));
     });
 }
