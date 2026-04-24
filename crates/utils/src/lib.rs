@@ -9,21 +9,24 @@ use criterion::Criterion;
 
 pub type CriterionConfig = Criterion<measure::CPUTime>;
 
+fn parse_env<T: std::str::FromStr>(name: &str) -> Option<T> {
+    std::env::var(name)
+        .ok()
+        .and_then(|value| value.parse::<T>().ok())
+}
+
 #[must_use]
 pub fn criterion_config() -> CriterionConfig {
-    if let Some(core_ids) = core_affinity::get_core_ids()
-        && let Some(first_core) = core_ids.first()
-        && core_affinity::set_for_current(*first_core)
+    if let Some(pinned_core) = parse_env::<usize>("PINNED_CORE")
+        && let Some(core_id) =
+            core_affinity::get_core_ids().and_then(|ids| ids.get(pinned_core).copied())
+        && core_affinity::set_for_current(core_id)
     {
-        eprintln!("Benchmark has been pinned to core {}", first_core.id);
+        eprintln!("Benchmark has been pinned to core {}", core_id.id);
     }
 
     let mut config = Criterion::default().with_measurement(measure::CPUTime);
-    if let Some(freq) = std::env::var("PPROF_FREQUENCY")
-        .ok()
-        .and_then(|value| value.parse().ok())
-        .filter(|&f| f > 0)
-    {
+    if let Some(freq) = parse_env("PPROF_FREQUENCY").filter(|&f| f > 0) {
         config = config.with_profiler(profiler::PProfProfiler::new(freq));
     }
     config
