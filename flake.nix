@@ -144,13 +144,18 @@
                   cargo-pgo
                   gnuplot
                   pprof
+                  fastfetch
                 ];
                 buildPhaseCargoCommand = ''
-                  cargo bench
+                  export PINNED_CORE=0
+                  cargo bench -- --save-baseline main
                   cargo pgo bench -- -- --profile-time 10
-                  cargo pgo optimize bench
+                  cargo pgo optimize bench -- -- --save-baseline pgo
                 '';
-                installPhaseCommand = "cp -r target/criterion $out";
+                installPhaseCommand = ''
+                  cp -r target/criterion $out
+                  fastfetch --structure CPU --format json | tee $out/cpu.json
+                '';
               }
             );
             coverage = craneLib.mkCargoDerivation (
