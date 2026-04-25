@@ -49,24 +49,24 @@ pub trait Arithmetics:
 }
 
 impl Arithmetics for u64 {
-    #[inline]
+    #[inline(always)]
     fn rotate_left(self, n: u32) -> Self {
         self.rotate_left(n)
     }
 
-    #[inline]
+    #[inline(always)]
     fn load_u64(value: u64) -> Self {
         value
     }
 }
 
 impl<const L: usize> Arithmetics for Simd<u64, L> {
-    #[inline]
+    #[inline(always)]
     fn rotate_left(self, n: u32) -> Self {
         (self << Self::splat(u64::from(n))) | (self >> Self::splat(u64::from(64 - n)))
     }
 
-    #[inline]
+    #[inline(always)]
     fn load_u64(value: u64) -> Self {
         Self::splat(value)
     }
@@ -81,7 +81,7 @@ impl<const L: usize> Arithmetics for Simd<u64, L> {
 /// used by mlkem-native: fusing all five steps into one pass avoids
 /// redundant loads/stores between steps and lets the compiler keep more
 /// state in registers.
-#[inline]
+#[inline(always)]
 fn keccak_round<T: Arithmetics>(a: &[T; PLEN], e: &mut [T; PLEN], rc: u64) {
     // Theta: column parities
     let bc0 = a[0] ^ a[5] ^ a[10] ^ a[15] ^ a[20];
@@ -178,7 +178,7 @@ pub fn f1600<T: Arithmetics>(state: &mut [T; PLEN]) {
 }
 
 /// Splat a 32-byte seed into the first 4 words of all lanes.
-#[inline]
+#[inline(always)]
 pub fn absorb_seed<T: Arithmetics>(state: &mut [T; PLEN], seed: &[u8; 32]) {
     let (chunks, _) = seed.as_chunks();
     unroll!(i in (..4), {

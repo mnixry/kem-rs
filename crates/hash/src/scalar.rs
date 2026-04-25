@@ -3,7 +3,7 @@
 use super::keccak::{PLEN, f1600};
 use crate::{SHA3_256_RATE, SHA3_512_RATE, SHA3_PAD, SHAKE_PAD, SHAKE256_RATE};
 
-#[inline]
+#[inline(always)]
 fn absorb_block<const R: usize>(state: &mut [u64; PLEN], block: &[u8; R]) {
     const { assert!(R.is_multiple_of(8)) }
     for (s, b) in state.iter_mut().zip(block.as_chunks::<8>().0) {
@@ -12,7 +12,7 @@ fn absorb_block<const R: usize>(state: &mut [u64; PLEN], block: &[u8; R]) {
     f1600(state);
 }
 
-#[inline]
+#[inline(always)]
 fn absorb_padded<const R: usize>(state: &mut [u64; PLEN], input: &[u8], pad: u8) {
     let (blocks, remainder) = input.as_chunks::<R>();
     for block in blocks {
@@ -29,7 +29,7 @@ fn absorb_padded<const R: usize>(state: &mut [u64; PLEN], input: &[u8], pad: u8)
 /// Streaming absorb: feeds `src` byte-by-byte into rate-sized blocks,
 /// permuting whenever a block fills. Used by [`rkprf`] for multi-piece
 /// input without allocation.
-#[inline]
+#[inline(always)]
 fn consume<const R: usize>(
     state: &mut [u64; PLEN], block: &mut [u8; R], block_pos: &mut usize, src: &[u8],
 ) {
@@ -48,7 +48,7 @@ fn consume<const R: usize>(
     }
 }
 
-#[inline]
+#[inline(always)]
 fn squeeze_into<const R: usize>(state: &mut [u64; PLEN], output: &mut [u8]) {
     let mut offset = 0;
     while offset < output.len() {
@@ -67,7 +67,7 @@ fn squeeze_into<const R: usize>(state: &mut [u64; PLEN], output: &mut [u8]) {
     }
 }
 
-#[inline]
+#[inline(always)]
 fn sponge<const R: usize>(pad: u8, input: &[u8], output: &mut [u8]) {
     let mut state = [0u64; PLEN];
     absorb_padded::<R>(&mut state, input, pad);
@@ -75,7 +75,7 @@ fn sponge<const R: usize>(pad: u8, input: &[u8], output: &mut [u8]) {
 }
 
 /// H(input) = SHA3-256(input) -> 32 bytes.
-#[inline]
+#[inline(always)]
 pub fn hash_h(input: impl AsRef<[u8]>) -> [u8; 32] {
     let mut out = [0u8; 32];
     sponge::<SHA3_256_RATE>(SHA3_PAD, input.as_ref(), &mut out);
@@ -83,7 +83,7 @@ pub fn hash_h(input: impl AsRef<[u8]>) -> [u8; 32] {
 }
 
 /// G(input) = SHA3-512(input) -> 64 bytes.
-#[inline]
+#[inline(always)]
 pub fn hash_g(input: impl AsRef<[u8]>) -> [u8; 64] {
     let mut out = [0u8; 64];
     sponge::<SHA3_512_RATE>(SHA3_PAD, input.as_ref(), &mut out);
@@ -91,13 +91,13 @@ pub fn hash_g(input: impl AsRef<[u8]>) -> [u8; 64] {
 }
 
 /// SHAKE-128(input) with arbitrary output length.
-#[inline]
+#[inline(always)]
 pub fn shake128(input: impl AsRef<[u8]>, output: &mut [u8]) {
     sponge::<{ crate::SHAKE128_RATE }>(SHAKE_PAD, input.as_ref(), output);
 }
 
 /// SHAKE-256(input) with arbitrary output length.
-#[inline]
+#[inline(always)]
 pub fn shake256(input: impl AsRef<[u8]>, output: &mut [u8]) {
     sponge::<SHAKE256_RATE>(SHAKE_PAD, input.as_ref(), output);
 }
@@ -105,7 +105,7 @@ pub fn shake256(input: impl AsRef<[u8]>, output: &mut [u8]) {
 /// J(key, ct) = SHAKE-256(key || ct) -> 32 bytes (implicit-reject PRF).
 ///
 /// Uses streaming absorb to avoid concatenating `key` and `ct`.
-#[inline]
+#[inline(always)]
 pub fn rkprf(key: impl AsRef<[u8]>, ct: impl AsRef<[u8]>) -> [u8; 32] {
     let mut state = [0u64; PLEN];
     let mut block = [0u8; SHAKE256_RATE];

@@ -12,7 +12,7 @@ use crate::{
 pub struct Polynomial(pub(crate) [i16; N]);
 
 impl Polynomial {
-    #[inline]
+    #[inline(always)]
     #[must_use]
     pub const fn zero() -> Self {
         Self([0i16; N])
@@ -78,7 +78,7 @@ impl Polynomial {
 
 #[cfg_attr(coverage_nightly, coverage(off))]
 impl From<[i16; N]> for Polynomial {
-    #[inline]
+    #[inline(always)]
     fn from(coeffs: [i16; N]) -> Self {
         Self(coeffs)
     }
@@ -86,7 +86,7 @@ impl From<[i16; N]> for Polynomial {
 
 #[cfg_attr(coverage_nightly, coverage(off))]
 impl Default for Polynomial {
-    #[inline]
+    #[inline(always)]
     fn default() -> Self {
         Self::zero()
     }
@@ -103,7 +103,7 @@ impl core::fmt::Debug for Polynomial {
 
 impl<'b> ops::Add<&'b Polynomial> for &Polynomial {
     type Output = Polynomial;
-    #[inline]
+    #[inline(always)]
     fn add(self, rhs: &'b Polynomial) -> Polynomial {
         Polynomial(poly_ops::add(&self.0, &rhs.0))
     }
@@ -111,14 +111,14 @@ impl<'b> ops::Add<&'b Polynomial> for &Polynomial {
 
 impl<'b> ops::Sub<&'b Polynomial> for &Polynomial {
     type Output = Polynomial;
-    #[inline]
+    #[inline(always)]
     fn sub(self, rhs: &'b Polynomial) -> Polynomial {
         Polynomial(poly_ops::sub(&self.0, &rhs.0))
     }
 }
 
 impl ops::AddAssign<&Self> for Polynomial {
-    #[inline]
+    #[inline(always)]
     fn add_assign(&mut self, rhs: &Self) {
         poly_ops::add_assign(&mut self.0, &rhs.0);
     }

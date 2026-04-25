@@ -27,7 +27,7 @@ pub fn bytes_to_coeffs(r: &mut [i16; N], a: &[u8]) {
 
 /// SIMD 12-bit unpacking: deinterleave overlapping u16 words, mask/shift to
 /// extract 12-bit coefficients, then re-interleave into natural order.
-#[inline]
+#[inline(always)]
 fn bytes_to_coeffs_lanes<const L: usize>(r: &mut [i16; N], a: &[u8]) {
     let zero = Simd::<i16, L>::splat(0);
     let mask = Simd::<i16, L>::splat(0x0FFF);

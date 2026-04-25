@@ -16,7 +16,7 @@ pub struct NttVector<const K: usize> {
 }
 
 impl<const K: usize> Vector<K> {
-    #[inline]
+    #[inline(always)]
     #[must_use]
     pub const fn zero() -> Self {
         Self {
@@ -63,7 +63,7 @@ impl<const K: usize> Vector<K> {
 }
 
 impl<const K: usize> NttVector<K> {
-    #[inline]
+    #[inline(always)]
     #[must_use]
     pub const fn zero() -> Self {
         Self {
@@ -124,7 +124,7 @@ pub struct NttMatrix<const K: usize> {
 }
 
 impl<const K: usize> NttMatrix<K> {
-    #[inline]
+    #[inline(always)]
     #[must_use]
     pub fn zero() -> Self {
         Self {

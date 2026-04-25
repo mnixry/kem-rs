@@ -73,7 +73,7 @@ impl<P: ParameterSet> TryInto<PublicKey<P>> for &[u8] {
 }
 
 impl<P: ParameterSet> AsRef<[u8]> for PublicKey<P> {
-    #[inline]
+    #[inline(always)]
     fn as_ref(&self) -> &[u8] {
         <Self as IntoBytes>::as_bytes(self)
     }
@@ -142,7 +142,7 @@ impl<P: ParameterSet> TryInto<SecretKey<P>> for &[u8] {
 }
 
 impl<P: ParameterSet> AsRef<[u8]> for SecretKey<P> {
-    #[inline]
+    #[inline(always)]
     fn as_ref(&self) -> &[u8] {
         <Self as IntoBytes>::as_bytes(self)
     }
@@ -178,7 +178,7 @@ impl<P: ParameterSet> TryInto<Ciphertext<P>> for &[u8] {
 }
 
 impl<P: ParameterSet> AsRef<[u8]> for Ciphertext<P> {
-    #[inline]
+    #[inline(always)]
     fn as_ref(&self) -> &[u8] {
         <Self as IntoBytes>::as_bytes(self)
     }
@@ -198,14 +198,14 @@ pub struct SharedSecret {
 }
 
 impl From<&[u8; SSBYTES]> for SharedSecret {
-    #[inline]
+    #[inline(always)]
     fn from(arr: &[u8; SSBYTES]) -> Self {
         Self { bytes: *arr }
     }
 }
 
 impl AsRef<[u8]> for SharedSecret {
-    #[inline]
+    #[inline(always)]
     fn as_ref(&self) -> &[u8] {
         &self.bytes
     }

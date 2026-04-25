@@ -9,7 +9,7 @@ use crate::{N, encode, ntt, simd::poly_ops};
 pub struct NttPolynomial(pub(crate) [i16; N]);
 
 impl NttPolynomial {
-    #[inline]
+    #[inline(always)]
     #[must_use]
     pub const fn zero() -> Self {
         Self([0i16; N])
@@ -63,7 +63,7 @@ impl NttPolynomial {
 
 #[cfg_attr(coverage_nightly, coverage(off))]
 impl Default for NttPolynomial {
-    #[inline]
+    #[inline(always)]
     fn default() -> Self {
         Self::zero()
     }
@@ -80,14 +80,14 @@ impl core::fmt::Debug for NttPolynomial {
 
 impl<'b> ops::Add<&'b NttPolynomial> for &NttPolynomial {
     type Output = NttPolynomial;
-    #[inline]
+    #[inline(always)]
     fn add(self, rhs: &'b NttPolynomial) -> NttPolynomial {
         NttPolynomial(poly_ops::add(&self.0, &rhs.0))
     }
 }
 
 impl ops::AddAssign<&Self> for NttPolynomial {
-    #[inline]
+    #[inline(always)]
     fn add_assign(&mut self, rhs: &Self) {
         poly_ops::add_assign(&mut self.0, &rhs.0);
     }

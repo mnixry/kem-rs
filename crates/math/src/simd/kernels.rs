@@ -10,7 +10,7 @@ macro_rules! mulhi {
 }
 
 /// Barrett reduction: `r \equiv a \pmod{q}`, centered `|r| <= q/2`.
-#[inline]
+#[inline(always)]
 #[must_use]
 pub fn barrett_reduce_vec<const L: usize>(a: Simd<i16, L>) -> Simd<i16, L> {
     const V: i16 = 20159;
@@ -20,7 +20,7 @@ pub fn barrett_reduce_vec<const L: usize>(a: Simd<i16, L>) -> Simd<i16, L> {
 }
 
 /// Field multiply: `a * b * R^{-1} mod q`.
-#[inline]
+#[inline(always)]
 #[must_use]
 pub fn fqmul_vec<const L: usize>(a: Simd<i16, L>, b: Simd<i16, L>) -> Simd<i16, L> {
     let ab_lo = a * b; // wrapping i16 mul -> vpmullw
@@ -46,7 +46,7 @@ const COMPRESS_BARRETT_M: i64 = {
 /// Replaces scalar `u32` division with Barrett reciprocal multiplication in
 /// `i64`. Input: `i16` coefficients in `[-Q, Q-1]`. Output: compressed `i16` in
 /// `[0, 2^d - 1]`.
-#[inline]
+#[inline(always)]
 #[must_use]
 pub fn compress_d_vec<const L: usize>(a: Simd<i16, L>, d: u32) -> Simd<i16, L> {
     let q = Simd::<i32, L>::splat(Q as i32);
@@ -70,7 +70,7 @@ pub fn compress_d_vec<const L: usize>(a: Simd<i16, L>, d: u32) -> Simd<i16, L> {
 ///
 /// Input: compressed `i16` in `[0, 2^d - 1]`. Output: decompressed `i16`
 /// coefficient.
-#[inline]
+#[inline(always)]
 #[must_use]
 pub fn decompress_d_vec<const L: usize>(y: Simd<i16, L>, d: u32) -> Simd<i16, L> {
     let y32: Simd<i32, L> = y.cast();

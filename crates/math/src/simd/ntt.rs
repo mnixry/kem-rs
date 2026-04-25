@@ -158,7 +158,7 @@ mod swizzles {
 
 /// Single NTT butterfly layer. `$sw` (SIMD width) must divide `$len`.
 /// When `$sw == $len` the inner loop executes exactly once (no tail).
-#[inline]
+#[inline(always)]
 pub fn layer_fwd<const LEN: usize, const SW: usize>(r: &mut [i16; N], k: &mut usize) {
     for start in (0..N).step_by(2 * LEN) {
         let zeta = ZETAS[*k];
@@ -177,7 +177,7 @@ pub fn layer_fwd<const LEN: usize, const SW: usize>(r: &mut [i16; N], k: &mut us
 
 // Inverse butterfly WITHOUT Barrett reduction on the sum.
 // Caller must ensure |a + b| and |b - a| fit in i16 (no wrapping).
-#[inline]
+#[inline(always)]
 pub fn layer_inv_nored<const LEN: usize, const SW: usize>(r: &mut [i16; N], k: &mut usize) {
     for start in (0..N).step_by(2 * LEN) {
         let zeta = ZETAS[*k];
@@ -193,7 +193,7 @@ pub fn layer_inv_nored<const LEN: usize, const SW: usize>(r: &mut [i16; N], k: &
     }
 }
 
-#[inline]
+#[inline(always)]
 pub fn layer_fwd_packed<const LEN: usize, const LANES: usize>(r: &mut [i16; N], k: &mut usize) {
     let groups = LANES / LEN;
     for start in (0..N).step_by(2 * LANES) {
@@ -227,7 +227,7 @@ pub fn layer_fwd_packed<const LEN: usize, const LANES: usize>(r: &mut [i16; N], 
     }
 }
 
-#[inline]
+#[inline(always)]
 pub fn layer_inv_nored_packed<const LEN: usize, const LANES: usize>(
     r: &mut [i16; N], k: &mut usize,
 ) {

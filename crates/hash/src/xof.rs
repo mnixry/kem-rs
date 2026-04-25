@@ -43,7 +43,7 @@ impl SqueezeWords<1> for ScalarShake128Reader {
 /// Absorb `seed || x || y` into `L` parallel SHAKE-128 states.
 ///
 /// Each lane receives a different `(x, y)` pair from `indices`.
-#[inline]
+#[inline(always)]
 fn xof_absorb_vec<const L: usize>(
     seed: &[u8; SYMBYTES], indices: [(u8, u8); L],
 ) -> impl SqueezeWords<L> {
@@ -61,7 +61,7 @@ fn xof_absorb_vec<const L: usize>(
     VectorShake128Reader(state)
 }
 
-#[inline]
+#[inline(always)]
 fn xof_absorb_scalar(seed: &[u8; SYMBYTES], indices: [(u8, u8); 1]) -> impl SqueezeWords<1> {
     let mut state = [0u64; PLEN];
     absorb_seed(&mut state, seed);

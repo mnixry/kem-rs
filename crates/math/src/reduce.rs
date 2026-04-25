@@ -10,7 +10,7 @@ pub const QINV: i16 = -3327;
 ///
 /// Input `a` with `|a| < 2q` (typical after butterfly). Output: `r in
 /// {-floor(q/2), ..., floor(q/2)}` with `r \equiv a (mod q)`.
-#[inline]
+#[inline(always)]
 #[must_use]
 #[cfg(test)]
 pub const fn barrett_reduce(a: i16) -> i16 {
@@ -23,7 +23,7 @@ pub const fn barrett_reduce(a: i16) -> i16 {
 ///
 /// Input: `a in {-q*2^{15}, ..., q*2^{15} - 1}`. Output: `r in {-q+1, ...,
 /// q-1}` with `r \equiv a*R^{-1} (mod q)`.
-#[inline]
+#[inline(always)]
 #[must_use]
 #[cfg(test)]
 pub const fn montgomery_reduce(a: i32) -> i16 {
@@ -32,7 +32,7 @@ pub const fn montgomery_reduce(a: i32) -> i16 {
 }
 
 /// Field multiplication followed by Montgomery reduction: `a*b*R^{-1} mod q`.
-#[inline]
+#[inline(always)]
 #[must_use]
 #[cfg(test)]
 pub const fn fqmul(a: i16, b: i16) -> i16 {

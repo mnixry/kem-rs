@@ -37,7 +37,7 @@ pub trait CbdWidth: CbdWidthParams {
 }
 
 impl CbdWidth for Eta2 {
-    #[inline]
+    #[inline(always)]
     fn sample(r: &mut [i16; N], buf: &<Self as CbdWidthParams>::Buffer) {
         debug_assert!(buf.len() >= 2 * N / 4);
         let (r_chunks, _) = r.as_chunks_mut();
@@ -55,7 +55,7 @@ impl CbdWidth for Eta2 {
 }
 
 impl CbdWidth for Eta3 {
-    #[inline]
+    #[inline(always)]
     fn sample(r: &mut [i16; N], buf: &<Self as CbdWidthParams>::Buffer) {
         debug_assert!(buf.len() >= 3 * N / 4);
         let (r_chunks, _) = r.as_chunks_mut();

@@ -41,7 +41,7 @@ pub trait ByteArray:
 impl<const SIZE: usize> ByteArray for [u8; SIZE] {
     const LEN: usize = SIZE;
 
-    #[inline]
+    #[inline(always)]
     fn zeroed() -> Self {
         [0u8; SIZE]
     }

@@ -12,7 +12,7 @@ use crate::{
 /// `K`-way parallel SHAKE-256 PRF: absorb `seed || nonce` per lane and
 /// squeeze `Eta::BUF_BYTES` bytes from each.
 #[must_use]
-#[inline]
+#[inline(always)]
 pub fn prf_batch<Eta: CbdWidth, const K: usize>(
     seed: &[u8; SYMBYTES], nonces: [u8; K],
 ) -> [Eta::Buffer; K] {

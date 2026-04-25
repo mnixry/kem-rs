@@ -7,12 +7,12 @@ use super::{
 use crate::{N, Q};
 
 /// Barrett-reduce all `N` coefficients in-place.
-#[inline]
+#[inline(always)]
 pub fn reduce(c: &mut [i16; N]) {
     super::dispatch_lanes!(reduce_lanes(c));
 }
 
-#[inline]
+#[inline(always)]
 fn reduce_lanes<const L: usize>(c: &mut [i16; N]) {
     for ch in c.as_chunks_mut::<L>().0 {
         *ch = barrett_reduce_vec(Simd::from_array(*ch)).into();
@@ -20,12 +20,12 @@ fn reduce_lanes<const L: usize>(c: &mut [i16; N]) {
 }
 
 /// `r[i] = a[i] + b[i]`.
-#[inline]
+#[inline(always)]
 pub fn add(a: &[i16; N], b: &[i16; N]) -> [i16; N] {
     super::dispatch_lanes!(add_lanes(a, b))
 }
 
-#[inline]
+#[inline(always)]
 fn add_lanes<const L: usize>(a: &[i16; N], b: &[i16; N]) -> [i16; N] {
     let mut ret = [0i16; N];
     for ((a, b), r) in (a.as_chunks::<L>().0)
@@ -41,12 +41,12 @@ fn add_lanes<const L: usize>(a: &[i16; N], b: &[i16; N]) -> [i16; N] {
 }
 
 /// `r[i] += b[i]`.
-#[inline]
+#[inline(always)]
 pub fn add_assign(r: &mut [i16; N], b: &[i16; N]) {
     super::dispatch_lanes!(add_assign_lanes(r, b));
 }
 
-#[inline]
+#[inline(always)]
 fn add_assign_lanes<const L: usize>(r: &mut [i16; N], b: &[i16; N]) {
     for (ret, b) in (r.as_chunks_mut::<L>().0)
         .iter_mut()
@@ -59,12 +59,12 @@ fn add_assign_lanes<const L: usize>(r: &mut [i16; N], b: &[i16; N]) {
 }
 
 /// `r[i] = a[i] - b[i]`.
-#[inline]
+#[inline(always)]
 pub fn sub(a: &[i16; N], b: &[i16; N]) -> [i16; N] {
     super::dispatch_lanes!(sub_lanes(a, b))
 }
 
-#[inline]
+#[inline(always)]
 fn sub_lanes<const L: usize>(a: &[i16; N], b: &[i16; N]) -> [i16; N] {
     let mut ret = [0i16; N];
     for ((a, b), r) in (a.as_chunks::<L>().0)
@@ -80,12 +80,12 @@ fn sub_lanes<const L: usize>(a: &[i16; N], b: &[i16; N]) -> [i16; N] {
 }
 
 /// Convert all coefficients to Montgomery domain: `c_i <- c_i * R mod q`.
-#[inline]
+#[inline(always)]
 pub fn to_montgomery(c: &mut [i16; N]) {
     super::dispatch_lanes!(to_montgomery_lanes(c));
 }
 
-#[inline]
+#[inline(always)]
 fn to_montgomery_lanes<const L: usize>(c: &mut [i16; N]) {
     const F: i16 = ((1u64 << 32) % (Q as u64)) as i16; // R^2 mod q = 1353
     let f = Simd::<i16, L>::splat(F);
@@ -95,12 +95,12 @@ fn to_montgomery_lanes<const L: usize>(c: &mut [i16; N]) {
 }
 
 /// `c_i <- c_i * scalar * R^{-1} mod q`.
-#[inline]
+#[inline(always)]
 pub fn mul_scalar_montgomery(c: &mut [i16; N], scalar: i16) {
     super::dispatch_lanes!(mul_scalar_montgomery_lanes(c, scalar));
 }
 
-#[inline]
+#[inline(always)]
 fn mul_scalar_montgomery_lanes<const L: usize>(c: &mut [i16; N], scalar: i16) {
     let s = Simd::<i16, L>::splat(scalar);
     for chunk in c.as_chunks_mut::<L>().0 {
@@ -111,12 +111,12 @@ fn mul_scalar_montgomery_lanes<const L: usize>(c: &mut [i16; N], scalar: i16) {
 /// SIMD csubq + Barrett compress all `N` coefficients.
 ///
 /// `out[i] = compress(coeffs[i], d)` for `d ∈ {1,4,5,10,11}`.
-#[inline]
+#[inline(always)]
 pub fn compress_coeffs(coeffs: &[i16; N], d: u32) -> [i16; N] {
     super::dispatch_lanes!(compress_coeffs_lanes(coeffs, d))
 }
 
-#[inline]
+#[inline(always)]
 fn compress_coeffs_lanes<const L: usize>(coeffs: &[i16; N], d: u32) -> [i16; N] {
     const { assert!(N.is_multiple_of(L)) }
     let mut outs = [0i16; N];
@@ -133,12 +133,12 @@ fn compress_coeffs_lanes<const L: usize>(coeffs: &[i16; N], d: u32) -> [i16; N] 
 /// SIMD decompress all `N` coefficients.
 ///
 /// `out[i] = decompress(compressed[i], d)` for `d ∈ {1,4,5,10,11}`.
-#[inline]
+#[inline(always)]
 pub fn decompress_coeffs(compressed: &[i16; N], d: u32) -> [i16; N] {
     super::dispatch_lanes!(decompress_coeffs_lanes(compressed, d))
 }
 
-#[inline]
+#[inline(always)]
 fn decompress_coeffs_lanes<const L: usize>(compressed: &[i16; N], d: u32) -> [i16; N] {
     const { assert!(N.is_multiple_of(L)) }
     let mut outs = [0i16; N];
@@ -153,7 +153,7 @@ fn decompress_coeffs_lanes<const L: usize>(compressed: &[i16; N], d: u32) -> [i1
 }
 
 /// Pointwise basemul: 64 degree-1 block multiplications in NTT domain.
-#[inline]
+#[inline(always)]
 pub fn basemul(a: &[i16; N], b: &[i16; N]) -> [i16; N] {
     super::dispatch_lanes!(basemul_lanes(a, b))
 }
@@ -164,7 +164,7 @@ pub fn basemul(a: &[i16; N], b: &[i16; N]) -> [i16; N] {
 /// zeta table to handle both `+ζ` and `-ζ` sub-pairs in one vector. This
 /// halves the register pressure and shuffle work compared to 4-way
 /// deinterleave, eliminating register spilling for K=3 on NEON (32 registers).
-#[inline]
+#[inline(always)]
 pub fn inner_product<const K: usize>(a: [&[i16; N]; K], b: [&[i16; N]; K]) -> [i16; N] {
     // Cannot use dispatch_lanes! because we have two const generics (K, L).
     match crate::simd::get_lane_width() {
@@ -177,7 +177,7 @@ pub fn inner_product<const K: usize>(a: [&[i16; N]; K], b: [&[i16; N]; K]) -> [i
 
 /// Process `L` blocks in parallel using SIMD de-interleave/interleave for the
 /// stride-4 gather/scatter and `fqmul_vec` for the arithmetic.
-#[inline]
+#[inline(always)]
 fn basemul_lanes<const L: usize>(a: &[i16; N], b: &[i16; N]) -> [i16; N] {
     let mut r = [0i16; N];
     for ((([a0, a1, a2, a3], [b0, b1, b2, b3]), z), out) in

@@ -43,7 +43,7 @@ compress_width!(
     D11: 11, 352
 );
 
-#[inline]
+#[inline(always)]
 #[must_use]
 pub const fn csubq(a: i16) -> u16 {
     let mut t = a as u16;
@@ -52,14 +52,14 @@ pub const fn csubq(a: i16) -> u16 {
 }
 
 #[cfg(test)]
-#[inline]
+#[inline(always)]
 const fn compress_coeff(x: u16, d: u32) -> u16 {
     let t = ((x as u32) << d).wrapping_add((Q as u32) / 2) / (Q as u32);
     (t & ((1u32 << d) - 1)) as u16
 }
 
 #[cfg(test)]
-#[inline]
+#[inline(always)]
 const fn decompress_coeff(y: u16, d: u32) -> u16 {
     (((y as u32) * (Q as u32) + (1u32 << (d - 1))) >> d) as u16
 }
