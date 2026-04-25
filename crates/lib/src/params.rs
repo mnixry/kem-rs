@@ -3,7 +3,10 @@
 //! The sealed [`ParameterSet`] trait encodes all parameters at the type level,
 //! including K-dependent algebra types, eliminating runtime dispatch.
 
-use kem_hash::SHAKE128_RATE;
+use kem_hash::{
+    SHAKE128_RATE,
+    xof::{SqueezeWords, XofAbsorb, XofAbsorbLanes},
+};
 use kem_math::{
     ByteArray, CbdWidth, CompressWidth, D4, D5, D10, D11, Eta2, Eta3, NttMatrix, NttPolynomial,
     NttVector, Polynomial, Vector, unroll,
@@ -197,7 +200,8 @@ macro_rules! impl_parameter_set {
 /// linear matrix index `base`.
 fn rej_sample_xof<const L: usize, const K: usize>(
     seed: &[u8; SYMBYTES], transposed: bool, base: usize, a: &mut NttMatrix<K>,
-) {
+) where
+    XofAbsorb<L>: XofAbsorbLanes<L>, {
     const TRIPLETS_PER_CHUNK: usize = 8;
     const BYTES_PER_CHUNK: usize = TRIPLETS_PER_CHUNK * 3;
     const NUM_CHUNKS: usize = SHAKE128_RATE / BYTES_PER_CHUNK;
@@ -211,7 +215,7 @@ fn rej_sample_xof<const L: usize, const K: usize>(
         }
     });
 
-    let mut reader = kem_hash::xof::xof_absorb(seed, indices);
+    let mut reader = XofAbsorb::xof_absorb(seed, indices);
     let mut coefficients = [[0i16; N + 16]; L];
     let mut counters = [0usize; L];
 

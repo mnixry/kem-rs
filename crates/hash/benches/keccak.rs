@@ -46,6 +46,8 @@ fn bench_rkprf(c: &mut kem_utils::CriterionConfig) {
 }
 
 fn bench_xof(c: &mut kem_utils::CriterionConfig) {
+    use kem_hash::xof::{SqueezeWords, XofAbsorbLanes};
+
     let mut g = c.benchmark_group("xof");
 
     let seed = [0x42u8; 32];
@@ -53,7 +55,7 @@ fn bench_xof(c: &mut kem_utils::CriterionConfig) {
     g.bench_function("xof_absorb_4", |b| {
         let indices = [(0, 0), (0, 1), (1, 0), (1, 1)];
         b.iter(|| {
-            black_box(kem_hash::xof::xof_absorb(
+            black_box(kem_hash::xof::XofAbsorb::xof_absorb(
                 black_box(&seed),
                 black_box(indices),
             ))
@@ -63,7 +65,7 @@ fn bench_xof(c: &mut kem_utils::CriterionConfig) {
     g.bench_function("squeeze_words_4", |b| {
         let indices = [(0, 0), (0, 1), (1, 0), (1, 1)];
         b.iter_batched(
-            || kem_hash::xof::xof_absorb(&seed, indices),
+            || kem_hash::xof::XofAbsorb::xof_absorb(&seed, indices),
             |mut reader| black_box(reader.squeeze_words()),
             kem_utils::criterion::BatchSize::SmallInput,
         );
@@ -72,7 +74,8 @@ fn bench_xof(c: &mut kem_utils::CriterionConfig) {
     g.bench_function("absorb_then_3_squeezes_4", |b| {
         let indices = [(0, 0), (0, 1), (1, 0), (1, 1)];
         b.iter(|| {
-            let mut reader = kem_hash::xof::xof_absorb(black_box(&seed), black_box(indices));
+            let mut reader =
+                kem_hash::xof::XofAbsorb::xof_absorb(black_box(&seed), black_box(indices));
             black_box(reader.squeeze_words());
             black_box(reader.squeeze_words());
             black_box(reader.squeeze_words());
@@ -82,7 +85,7 @@ fn bench_xof(c: &mut kem_utils::CriterionConfig) {
     g.bench_function("xof_absorb_2", |b| {
         let indices = [(0, 0), (0, 1)];
         b.iter(|| {
-            black_box(kem_hash::xof::xof_absorb(
+            black_box(kem_hash::xof::XofAbsorb::xof_absorb(
                 black_box(&seed),
                 black_box(indices),
             ))

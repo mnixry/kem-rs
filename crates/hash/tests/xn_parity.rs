@@ -5,7 +5,7 @@ use kem_hash::{
     SHAKE128_RATE,
     prf::prf_batch,
     scalar::{shake128, shake256},
-    xof::xof_absorb,
+    xof::{SqueezeWords, XofAbsorb, XofAbsorbLanes},
 };
 use kem_math::{CbdWidthParams, Eta2, Eta3, SYMBYTES};
 
@@ -33,7 +33,7 @@ fn xof_4_lanes_matches_scalar() {
     let seed: [u8; SYMBYTES] = core::array::from_fn(|i| (i as u8).wrapping_mul(0x37));
     let indices = [(0, 0), (0, 1), (1, 0), (1, 1)];
 
-    let mut reader = xof_absorb(&seed, indices);
+    let mut reader = XofAbsorb::xof_absorb(&seed, indices);
 
     let n_squeezes = 4;
     let total_bytes = n_squeezes * SHAKE128_RATE;
@@ -62,7 +62,7 @@ fn xof_2_lanes_matches_scalar() {
     let seed: [u8; SYMBYTES] = core::array::from_fn(|i| (i as u8).wrapping_mul(0x37));
     let indices = [(0, 0), (1, 1)];
 
-    let mut reader = xof_absorb(&seed, indices);
+    let mut reader = XofAbsorb::xof_absorb(&seed, indices);
     let words = reader.squeeze_words();
 
     for (lane_idx, &(x, y)) in indices.iter().enumerate() {
@@ -83,7 +83,7 @@ fn xof_various_seeds() {
         let seed: [u8; SYMBYTES] = core::array::from_fn(|i| (i as u8).wrapping_add(tag * 17));
         let indices = [(tag, 0), (0, tag), (tag, tag), (0, 0)];
 
-        let mut reader = xof_absorb(&seed, indices);
+        let mut reader = XofAbsorb::xof_absorb(&seed, indices);
         let words = reader.squeeze_words();
 
         for (lane_idx, &(x, y)) in indices.iter().enumerate() {

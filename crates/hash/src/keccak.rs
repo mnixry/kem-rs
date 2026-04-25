@@ -169,14 +169,11 @@ fn keccak_round<T: Arithmetics>(a: &[T; PLEN], e: &mut [T; PLEN], rc: u64) {
 ///
 /// Based on the Van Keer / SUPERCOP implementation strategy, also used
 /// by mlkem-native's C Keccak.
-#[allow(unused_assignments)]
 pub fn f1600<T: Arithmetics>(state: &mut [T; PLEN]) {
     let mut tmp = [T::default(); PLEN];
-    let mut i = 0;
-    while i < 24 {
-        keccak_round(state, &mut tmp, RC[i]);
-        keccak_round(&tmp, state, RC[i + 1]);
-        i += 2;
+    for &[r1, r2] in RC.as_chunks().0 {
+        keccak_round(state, &mut tmp, r1);
+        keccak_round(&tmp, state, r2);
     }
 }
 
