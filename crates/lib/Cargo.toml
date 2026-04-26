@@ -19,6 +19,7 @@ zeroize.workspace  = true
 aes       = "0.9.0"
 getrandom = { version = "0.4.2", features = ["sys_rng"] }
 ml-kem    = { version = "0.2.3", features = ["deterministic"] }
+rand      = "0.10.1"
 rand_core = "0.10.1"
 sha2      = "0.11.0"
 

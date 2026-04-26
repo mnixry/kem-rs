@@ -7,6 +7,7 @@ use core::hint::black_box;
 
 use kem_math::LaneWidth;
 use kem_utils::criterion::{BenchmarkId, criterion_group, criterion_main};
+use rand::{Rng, SeedableRng, rngs::StdRng};
 
 const LANE_WIDTHS: &[LaneWidth] = &[
     LaneWidth::W128Bit,
@@ -15,9 +16,16 @@ const LANE_WIDTHS: &[LaneWidth] = &[
     LaneWidth::W1024Bit,
 ];
 
-fn deterministic_coins() -> ([u8; 64], [u8; 32]) {
-    let keygen: [u8; 64] = core::array::from_fn(|i| (i as u8).wrapping_mul(37));
-    let enc: [u8; 32] = core::array::from_fn(|i| (i as u8).wrapping_mul(53));
+const LANE_BENCH_KEYGEN_SEED: u64 = 0x4B45_4D5F_4C4E_4B47; // "KEM_L" + "NKG"
+const LANE_BENCH_ENC_SEED: u64 = 0x4B45_4D5F_4C4E_454E; // "KEM" + "LNEN"
+
+fn rng_coins() -> ([u8; 64], [u8; 32]) {
+    let mut krng = StdRng::seed_from_u64(LANE_BENCH_KEYGEN_SEED);
+    let mut keygen = [0u8; 64];
+    krng.fill_bytes(&mut keygen);
+    let mut erng = StdRng::seed_from_u64(LANE_BENCH_ENC_SEED);
+    let mut enc = [0u8; 32];
+    erng.fill_bytes(&mut enc);
     (keygen, enc)
 }
 
@@ -31,7 +39,7 @@ fn bench_lane_widths_for<P: kem_rs::ParameterSet>(c: &mut kem_utils::CriterionCo
             .expect("type name not found")
     ));
 
-    let (keygen_coins, enc_coins) = deterministic_coins();
+    let (keygen_coins, enc_coins) = rng_coins();
 
     for &width in LANE_WIDTHS {
         g.bench_function(BenchmarkId::new("keypair", width as usize), |b| {

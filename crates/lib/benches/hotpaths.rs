@@ -9,11 +9,22 @@ use core::hint::black_box;
 
 use kem_rs::ParameterSet;
 use kem_utils::criterion::{criterion_group, criterion_main};
+use rand::{Rng, SeedableRng, rngs::StdRng};
+
+const HOTPATH_SEED: u64 = 0x4B_45_4D_5F_48_4F; // "KEM_HO" + pad
+
+fn fill_seed(rng: &mut StdRng) -> [u8; 32] {
+    let mut seed = [0u8; 32];
+    rng.fill_bytes(&mut seed);
+    seed
+}
 
 #[allow(clippy::many_single_char_names)]
 fn bench_hotpaths<P: ParameterSet>(crit: &mut kem_utils::CriterionConfig, label: &str) {
     let mut group = crit.benchmark_group(format!("hotpath/{label}"));
-    let seed = [0x42u8; 32];
+    let mut rng = StdRng::seed_from_u64(HOTPATH_SEED);
+    let seed = fill_seed(&mut rng);
+    let noise_seed = fill_seed(&mut rng);
 
     group.bench_function("gen_matrix", |b| {
         b.iter(|| black_box(P::gen_matrix(black_box(&seed), false)));
@@ -46,7 +57,6 @@ fn bench_hotpaths<P: ParameterSet>(crit: &mut kem_utils::CriterionConfig, label:
 
     group.bench_function("mat_mul_vec_tomont", |b| {
         let mat = P::gen_matrix(&seed, false);
-        let noise_seed: [u8; 32] = [0x42u8; 32];
         let mut nonce = 0u8;
         let vec = P::sample_noise_eta1(&noise_seed, &mut nonce);
         b.iter(|| black_box(P::mat_mul_vec_tomont(black_box(&mat), black_box(&vec))));

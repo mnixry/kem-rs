@@ -5,18 +5,28 @@ use core::hint::black_box;
 
 use kem_utils::criterion::{BenchmarkId, criterion_group, criterion_main};
 use ml_kem::{EncapsulateDeterministic, KemCore, kem::Decapsulate};
+use rand::{Rng, SeedableRng, rngs::StdRng};
 
+/// `tag` names each parameter set so the three parameter sets do not share
+/// inputs.
 fn keygen_coins(tag: u8) -> ([u8; 32], [u8; 32], [u8; 64]) {
-    let full: [u8; 64] = core::array::from_fn(|i| (i as u8).wrapping_add(tag.wrapping_mul(37)));
+    const BASE: u64 = 0x4B_45_4D_5F_4B_50_00_00; // "KEM" + "KP" + 00
+    let mut rng = StdRng::seed_from_u64(BASE + u64::from(tag));
+    let mut full = [0u8; 64];
+    rng.fill_bytes(&mut full);
     (
-        full[..32].try_into().unwrap(),
-        full[32..].try_into().unwrap(),
+        full[..32].try_into().expect("32 bytes"),
+        full[32..].try_into().expect("32 bytes"),
         full,
     )
 }
 
 fn enc_coins(tag: u8) -> [u8; 32] {
-    core::array::from_fn(|i| (i as u8).wrapping_add(tag.wrapping_mul(53)))
+    const BASE: u64 = 0x4B_45_4D_5F_4D_53_00_00; // "KEM_MS" + 00
+    let mut rng = StdRng::seed_from_u64(BASE + u64::from(tag));
+    let mut m = [0u8; 32];
+    rng.fill_bytes(&mut m);
+    m
 }
 
 macro_rules! dispatch_binding_function {
