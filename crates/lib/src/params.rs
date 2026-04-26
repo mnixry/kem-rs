@@ -12,7 +12,7 @@ use kem_math::{
     NttVector, Polynomial, Vector, unroll,
 };
 pub use kem_math::{N, POLYBYTES, Q, SYMBYTES};
-use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, Unaligned};
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, Unaligned, transmute};
 
 pub const SSBYTES: usize = 32;
 
@@ -231,15 +231,15 @@ fn rej_sample_xof<const L: usize, const K: usize>(
 
             for chunk in 0..NUM_CHUNKS {
                 let base_pos = chunk * (BYTES_PER_CHUNK / 8);
-                let words = unroll!(i in [..3], words[base_pos + i][lane].to_le_bytes());
-                let flattened = words.as_flattened();
+                let words: [u8; 8 * 3] =
+                    transmute!(unroll!(i in [..3], words[base_pos + i][lane].to_le_bytes()));
                 unroll!(i in (..8), {
                     let val1 =
-                        u16::from_le_bytes([flattened[i * 3], flattened[i * 3 + 1]]) & 0x0FFF;
+                        u16::from_le_bytes([words[i * 3], words[i * 3 + 1]]) & 0x0FFF;
                     coefficients[*counter] = val1.cast_signed();
                     *counter += usize::from(val1 < Q as u16);
                     let val2 =
-                        u16::from_le_bytes([flattened[i * 3 + 1], flattened[i * 3 + 2]]) >> 4;
+                        u16::from_le_bytes([words[i * 3 + 1], words[i * 3 + 2]]) >> 4;
                     coefficients[*counter] = val2.cast_signed();
                     *counter += usize::from(val2 < Q as u16);
                 });

@@ -17,7 +17,7 @@ fn parse_env<T: std::str::FromStr>(name: &str) -> Option<T> {
 
 #[must_use]
 pub fn criterion_config() -> CriterionConfig {
-    if let Some(pinned_core) = parse_env::<usize>("PINNED_CORE")
+    if let pinned_core = parse_env::<usize>("PINNED_CORE").unwrap_or_default()
         && let Some(core_id) =
             core_affinity::get_core_ids().and_then(|ids| ids.get(pinned_core).copied())
         && core_affinity::set_for_current(core_id)

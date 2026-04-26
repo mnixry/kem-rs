@@ -1,6 +1,6 @@
 //! Deterministic sampling: sealed CBD noise traits and rejection-uniform.
 
-use crate::{ByteArray, N, Q};
+use crate::{ByteArray, N};
 
 mod sealed {
     pub trait Sealed {}
@@ -72,32 +72,6 @@ impl CbdWidth for Eta3 {
     }
 }
 
-const SHAKE128_RATE: usize = 168;
-
-pub fn reject_uniform(r: &mut [i16; N], mut fill: impl FnMut(&mut [u8])) -> usize {
-    let mut ctr = 0;
-    let mut buf = [0u8; SHAKE128_RATE];
-
-    while ctr < N {
-        fill(&mut buf);
-        let mut pos = 0;
-        while ctr < N && pos + 3 <= SHAKE128_RATE {
-            let val0 = ((buf[pos] as u16) | ((buf[pos + 1] as u16) << 8)) & 0x0FFF;
-            let val1 = ((buf[pos + 1] as u16) >> 4) | ((buf[pos + 2] as u16) << 4);
-            pos += 3;
-            if val0 < Q as u16 {
-                r[ctr] = val0 as i16;
-                ctr += 1;
-            }
-            if ctr < N && val1 < Q as u16 {
-                r[ctr] = val1 as i16;
-                ctr += 1;
-            }
-        }
-    }
-    ctr
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -134,21 +108,5 @@ mod tests {
         let mut r = [99i16; N];
         Eta2::sample(&mut r, &buf);
         assert!(r.iter().all(|&c| c == 0));
-    }
-
-    #[test]
-    fn reject_uniform_fills_completely() {
-        let mut counter = 0u8;
-        let mut r = [0i16; N];
-        let count = reject_uniform(&mut r, |buf| {
-            for b in buf.iter_mut() {
-                *b = counter;
-                counter = counter.wrapping_add(1);
-            }
-        });
-        assert_eq!(count, N);
-        for &c in &r {
-            assert!((0..Q).contains(&c), "coefficient {c} out of [0, q)");
-        }
     }
 }

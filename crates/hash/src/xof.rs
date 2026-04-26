@@ -49,24 +49,19 @@ fn xof_absorb_vec<const L: usize>(
 ) -> impl SqueezeWords<L> {
     let mut state = [Simd::splat(0u64); PLEN];
     absorb_seed(&mut state, seed);
-
-    state[4] = Simd::from_array(core::array::from_fn(|lane| {
-        let (x, y) = indices[lane];
-        u64::from(x) | (u64::from(y) << 8) | (u64::from(SHAKE_PAD) << 16)
-    }));
-
+    state[4] = Simd::from_array(
+        indices.map(|(x, y)| u64::from(x) | (u64::from(y) << 8) | (u64::from(SHAKE_PAD) << 16)),
+    );
     // End-of-rate padding: byte 167 = word 20, byte offset 7.
     state[20] = Simd::splat(0x80_u64 << 56);
-
     VectorShake128Reader(state)
 }
 
 #[inline(always)]
-fn xof_absorb_scalar(seed: &[u8; SYMBYTES], indices: [(u8, u8); 1]) -> impl SqueezeWords<1> {
+fn xof_absorb_scalar(seed: &[u8; SYMBYTES], [(x, y)]: [(u8, u8); 1]) -> impl SqueezeWords<1> {
     let mut state = [0u64; PLEN];
     absorb_seed(&mut state, seed);
-    state[4] =
-        u64::from(indices[0].0) | (u64::from(indices[0].1) << 8) | (u64::from(SHAKE_PAD) << 16);
+    state[4] = u64::from(x) | (u64::from(y) << 8) | (u64::from(SHAKE_PAD) << 16);
     state[20] = 0x80_u64 << 56;
     ScalarShake128Reader(state)
 }
@@ -77,25 +72,16 @@ pub trait XofAbsorbLanes<const L: usize>: sealed::Sealed {
     fn xof_absorb(seed: &[u8; SYMBYTES], indices: [(u8, u8); L]) -> impl SqueezeWords<L>;
 }
 
-impl sealed::Sealed for XofAbsorb<1> {}
-impl XofAbsorbLanes<1> for XofAbsorb<1> {
-    fn xof_absorb(seed: &[u8; SYMBYTES], indices: [(u8, u8); 1]) -> impl SqueezeWords<1> {
-        xof_absorb_scalar(seed, indices)
-    }
-}
-
 macro_rules! impl_xof_absorb_vec {
-    ($L:expr) => {
+    ($($L:expr),+ => $fn:path) => {$(
         impl sealed::Sealed for XofAbsorb<$L> {}
         impl XofAbsorbLanes<$L> for XofAbsorb<$L> {
             fn xof_absorb(seed: &[u8; SYMBYTES], indices: [(u8, u8); $L]) -> impl SqueezeWords<$L> {
-                xof_absorb_vec(seed, indices)
+                $fn(seed, indices)
             }
         }
-    };
+    )+};
 }
 
-impl_xof_absorb_vec!(2);
-impl_xof_absorb_vec!(4);
-impl_xof_absorb_vec!(8);
-impl_xof_absorb_vec!(16);
+impl_xof_absorb_vec!(1 => xof_absorb_scalar);
+impl_xof_absorb_vec!(2, 4, 8, 16 => xof_absorb_vec);
