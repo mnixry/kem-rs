@@ -126,15 +126,15 @@ macro_rules! impl_parameter_set {
             }
 
             fn sample_noise_eta1(seed: &[u8; SYMBYTES], nonce: &mut u8) -> Self::NttVec {
-                sample_noise_ntt::<$Eta1, $K>(seed, nonce)
+                sample_noise_ntt::<$Eta1, $K, { prf_batch_lanes($K) }>(seed, nonce)
             }
 
             fn sample_noise_eta1_std(seed: &[u8; SYMBYTES], nonce: &mut u8) -> Self::Vec {
-                sample_noise_std::<$Eta1, $K>(seed, nonce)
+                sample_noise_std::<$Eta1, $K, { prf_batch_lanes($K) }>(seed, nonce)
             }
 
             fn sample_noise_eta2(seed: &[u8; SYMBYTES], nonce: &mut u8) -> Self::Vec {
-                sample_noise_std::<$Eta2, $K>(seed, nonce)
+                sample_noise_std::<$Eta2, $K, { prf_batch_lanes($K) }>(seed, nonce)
             }
 
             fn ntt_vec_from_bytes(bytes: &[u8]) -> Self::NttVec {
@@ -304,12 +304,22 @@ macro_rules! gen_matrix_body {
     };
 }
 
-fn sample_noise_ntt<Eta: CbdWidth, const K: usize>(
+const fn prf_batch_lanes(k: usize) -> usize {
+    let mut lanes = 1;
+    while lanes < k {
+        lanes *= 2;
+    }
+    lanes
+}
+
+fn sample_noise_ntt<Eta: CbdWidth, const K: usize, const L: usize>(
     seed: &[u8; SYMBYTES], nonce: &mut u8,
 ) -> NttVector<K> {
+    const { assert!(L >= K) };
+
     let mut v = NttVector::<K>::zero();
-    let nonces: [u8; K] = core::array::from_fn(|i| nonce.wrapping_add(i as u8));
-    let bufs = kem_hash::prf::prf_batch::<Eta, K>(seed, nonces);
+    let nonces: [u8; L] = core::array::from_fn(|i| nonce.wrapping_add(i as u8));
+    let bufs = kem_hash::prf::prf_batch::<Eta, L>(seed, nonces);
     for (i, p) in v.polys_mut().iter_mut().enumerate() {
         *p = Polynomial::sample_cbd::<Eta>(&bufs[i]).ntt();
     }
@@ -317,12 +327,14 @@ fn sample_noise_ntt<Eta: CbdWidth, const K: usize>(
     v
 }
 
-fn sample_noise_std<Eta: CbdWidth, const K: usize>(
+fn sample_noise_std<Eta: CbdWidth, const K: usize, const L: usize>(
     seed: &[u8; SYMBYTES], nonce: &mut u8,
 ) -> Vector<K> {
+    const { assert!(L >= K) };
+
     let mut v = Vector::<K>::zero();
-    let nonces: [u8; K] = core::array::from_fn(|i| nonce.wrapping_add(i as u8));
-    let bufs = kem_hash::prf::prf_batch::<Eta, K>(seed, nonces);
+    let nonces: [u8; L] = core::array::from_fn(|i| nonce.wrapping_add(i as u8));
+    let bufs = kem_hash::prf::prf_batch::<Eta, L>(seed, nonces);
     for (i, p) in v.polys_mut().iter_mut().enumerate() {
         *p = Polynomial::sample_cbd::<Eta>(&bufs[i]);
     }
