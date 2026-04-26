@@ -41,14 +41,81 @@ const COMPRESS_BARRETT_M: i64 = {
     (1u64 << 40).div_ceil(q)
 } as i64;
 
+/// Compress for d ∈ {1,4,5}: `round(x * 2^d / Q) mod 2^d`.
+///
+/// Uses 32-bit wrapping arithmetic following the mlkem-native approach
+/// (Becker, Kannwischer et al.). For each d value, we precompute
+/// `C = 2^d * round(2^S / Q)` such that `x * C` fits in u32 for all
+/// x ∈ [0, Q-1], and `round(x * 2^d / Q) = (x * C + 2^(S-1)) >> S`.
+///
+/// This avoids the i64 widening needed by the general Barrett approach,
+/// doubling SIMD throughput on architectures with 128-bit registers
+/// (NEON: 4×i32 vs 2×i64 per register).
+#[inline(always)]
+#[must_use]
+fn compress_d_small_vec<const L: usize, const D: u32>(a: Simd<i16, L>) -> Simd<i16, L> {
+    // Per-d constants: C = 2^d * round(2^(32-d) / Q), S = 32 - d + (32 - (32-d)) =
+    // depends Following mlkem-native:
+    //   D1: C = 2 * round(2^31/Q) = 1290168, S = 31
+    //   D4: C = 16 * round(2^28/Q) = 1290160, S = 28
+    //   D5: C = 32 * round(2^27/Q) = 1290176, S = 27
+    const fn compress_const(d: u32) -> (u32, u32) {
+        let s = 32 - d;
+        let q = Q as u64;
+        // round(2^s / Q) = (2^s + Q/2) / Q
+        let recip = ((1u64 << s) + q / 2) / q;
+        let c = ((1u64 << d) * recip) as u32;
+        (c, s)
+    }
+
+    const { assert!(D <= 5, "compress_d_small_vec only valid for d <= 5") };
+
+    let (c, s) = const { compress_const(D) };
+
+    let q = Simd::<i32, L>::splat(Q as i32);
+    let a32: Simd<i32, L> = a.cast();
+
+    // csubq: add Q when coefficient is negative → [0, Q-1]
+    let neg_mask = a32 >> Simd::splat(31);
+    let x = a32 + (neg_mask & q);
+
+    // Wrapping u32 multiply: x * C (fits in u32 for d <= 5)
+    // We work in i32 since portable_simd doesn't directly support
+    // wrapping u32 mul, but the bit pattern is identical.
+    let xu: Simd<u32, L> = x.cast();
+    let product = xu * Simd::splat(c);
+
+    // Round and shift: (product + 2^(s-1)) >> s
+    let rounded = product + Simd::splat(1u32 << (s - 1));
+    let quot = rounded >> Simd::splat(s);
+
+    // Mask to d bits
+    (quot & Simd::splat((1u32 << D) - 1)).cast::<i16>()
+}
+
 /// Compress: `floor((csubq(a) << d + Q/2) / Q) & ((1 << d) - 1)`.
 ///
-/// Replaces scalar `u32` division with Barrett reciprocal multiplication in
-/// `i64`. Input: `i16` coefficients in `[-Q, Q-1]`. Output: compressed `i16` in
+/// For d ≤ 5, uses 32-bit wrapping Barrett (2× SIMD throughput on NEON).
+/// For d ∈ {10, 11}, uses 64-bit Barrett reciprocal multiplication.
+///
+/// Input: `i16` coefficients in `[-Q, Q-1]`. Output: compressed `i16` in
 /// `[0, 2^d - 1]`.
 #[inline(always)]
 #[must_use]
 pub fn compress_d_vec<const L: usize>(a: Simd<i16, L>, d: u32) -> Simd<i16, L> {
+    match d {
+        1 => compress_d_small_vec::<L, 1>(a),
+        4 => compress_d_small_vec::<L, 4>(a),
+        5 => compress_d_small_vec::<L, 5>(a),
+        _ => compress_d_large_vec(a, d),
+    }
+}
+
+/// Compress for d ∈ {10, 11}: needs 64-bit Barrett because the product
+/// exceeds 32 bits.
+#[inline(always)]
+#[must_use]
+fn compress_d_large_vec<const L: usize>(a: Simd<i16, L>, d: u32) -> Simd<i16, L> {
     let q = Simd::<i32, L>::splat(Q as i32);
     let a32: Simd<i32, L> = a.cast();
 
