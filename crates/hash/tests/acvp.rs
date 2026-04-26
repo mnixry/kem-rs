@@ -175,7 +175,7 @@ fn run_shake_aft(
             shake_fn(&pt.msg.0[..msg_bytes], &mut actual);
 
             // ACVP places the meaningful tail bits in MSB positions;
-            // Keccak squeezes them into LSB positions — shift to match.
+            // Keccak squeezes them into LSB positions -- shift to match.
             if tail_bits != 0
                 && let Some(last) = actual.last_mut()
             {

@@ -26,7 +26,7 @@ pub enum Error {
         /// Actual byte count received.
         actual: usize,
     },
-    /// Key bytes failed validation (e.g. FIPS 203 §7.2 modulus check).
+    /// Key bytes failed validation (e.g. FIPS 203 Section 7.2 modulus check).
     InvalidKey,
 }
 

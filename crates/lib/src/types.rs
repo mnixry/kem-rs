@@ -5,8 +5,9 @@
 //! for automatic memory clearing.
 //!
 //! Each key/ciphertext type provides a `try_from_slice` constructor that
-//! validates the input.  For [`PublicKey`] this includes the FIPS 203 §7.2
-//! modulus check; for [`SecretKey`] it verifies the embedded public-key hash.
+//! validates the input.  For [`PublicKey`] this includes the FIPS 203 Section
+//! 7.2 modulus check; for [`SecretKey`] it verifies the embedded public-key
+//! hash.
 //!
 //! Byte (de)serialisation is zero-cost via `zerocopy` derives on `#[repr(C)]`
 //! layouts.
@@ -47,9 +48,9 @@ impl<P: ParameterSet> TryInto<PublicKey<P>> for &[u8] {
     ///
     /// Validates:
     /// 1. Length -- must be exactly `P::PK_BYTES`.
-    /// 2. FIPS 203 §7.2 modulus check -- the NTT-vector portion is decoded and
-    ///    re-encoded; if the result differs, the key contains coefficients
-    ///    outside `[0, q)` and is rejected.
+    /// 2. FIPS 203 Section 7.2 modulus check -- the NTT-vector portion is
+    ///    decoded and re-encoded; if the result differs, the key contains
+    ///    coefficients outside `[0, q)` and is rejected.
     ///
     /// # Errors
     ///

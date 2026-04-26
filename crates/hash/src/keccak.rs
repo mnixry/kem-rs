@@ -1,7 +1,7 @@
 //! Lane-count-generic Keccak-f[1600] permutation.
 //!
-//! All sponge constructions in this crate — scalar hashes, parallel XOF,
-//! and parallel PRF — share this single permutation, instantiated at
+//! All sponge constructions in this crate -- scalar hashes, parallel XOF,
+//! and parallel PRF -- share this single permutation, instantiated at
 //! different lane counts: 1 for scalar, K for PRF, K*K for XOF.
 
 use core::simd::Simd;

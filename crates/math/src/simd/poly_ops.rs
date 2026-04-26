@@ -110,7 +110,7 @@ fn mul_scalar_montgomery_lanes<const L: usize>(c: &mut [i16; N], scalar: i16) {
 
 /// SIMD csubq + Barrett compress all `N` coefficients.
 ///
-/// `out[i] = compress(coeffs[i], d)` for `d ∈ {1,4,5,10,11}`.
+/// `out[i] = compress(coeffs[i], d)` for `d in {1,4,5,10,11}`.
 #[inline(always)]
 pub fn compress_coeffs(coeffs: &[i16; N], d: u32) -> [i16; N] {
     super::dispatch_lanes!(compress_coeffs_lanes(coeffs, d))
@@ -132,7 +132,7 @@ fn compress_coeffs_lanes<const L: usize>(coeffs: &[i16; N], d: u32) -> [i16; N] 
 
 /// SIMD decompress all `N` coefficients.
 ///
-/// `out[i] = decompress(compressed[i], d)` for `d ∈ {1,4,5,10,11}`.
+/// `out[i] = decompress(compressed[i], d)` for `d in {1,4,5,10,11}`.
 #[inline(always)]
 pub fn decompress_coeffs(compressed: &[i16; N], d: u32) -> [i16; N] {
     super::dispatch_lanes!(decompress_coeffs_lanes(compressed, d))
@@ -161,7 +161,7 @@ pub fn basemul(a: &[i16; N], b: &[i16; N]) -> [i16; N] {
 /// Fused inner product: `sum_{k=0}^{K-1} basemul(a[k], b[k])`.
 ///
 /// Uses 2-way deinterleave (real/imag separation) with an alternating-sign
-/// zeta table to handle both `+ζ` and `-ζ` sub-pairs in one vector. This
+/// zeta table to handle both `+zeta` and `-zeta` sub-pairs in one vector. This
 /// halves the register pressure and shuffle work compared to 4-way
 /// deinterleave, eliminating register spilling for K=3 on NEON (32 registers).
 #[inline(always)]
@@ -186,7 +186,7 @@ fn basemul_lanes<const L: usize>(a: &[i16; N], b: &[i16; N]) -> [i16; N] {
             .zip(ZETAS[64..].as_chunks::<L>().0.iter())
             .zip(r.as_chunks_mut::<L>().0.as_chunks_mut::<4>().0.iter_mut())
     {
-        // 4-way de-interleave (AOS→SOA): two passes of 2-way deinterleave
+        // 4-way de-interleave (AOS to SOA): two passes of 2-way deinterleave
         // turn [a0,a1,a2,a3, b0,b1,b2,b3, ...] into four L-wide role vectors.
         let (t0, t1) = Simd::from_array(*a0).deinterleave(Simd::from_array(*a1));
         let (t2, t3) = Simd::from_array(*a2).deinterleave(Simd::from_array(*a3));
@@ -206,7 +206,7 @@ fn basemul_lanes<const L: usize>(a: &[i16; N], b: &[i16; N]) -> [i16; N] {
         let r2 = fqmul_vec(fqmul_vec(a3, b3), -z) + fqmul_vec(a2, b2);
         let r3 = fqmul_vec(a2, b3) + fqmul_vec(a3, b2);
 
-        // 4-way re-interleave (SOA→AOS): reverse the deinterleave.
+        // 4-way re-interleave (SOA to AOS): reverse the deinterleave.
         let (lo02, hi02) = r0.interleave(r2);
         let (lo13, hi13) = r1.interleave(r3);
         let (out0, out1) = lo02.interleave(lo13);
@@ -222,9 +222,9 @@ fn basemul_lanes<const L: usize>(a: &[i16; N], b: &[i16; N]) -> [i16; N] {
 /// `ZETAS_BASEMUL_2WAY[2*i] = +ZETAS[64+i]`, `ZETAS_BASEMUL_2WAY[2*i+1] =
 /// -ZETAS[64+i]`.
 ///
-/// This allows a single SIMD vector to carry both `+ζ` and `-ζ` for adjacent
-/// sub-pairs, enabling 2-way deinterleave (1 `uzp` pair) instead of 4-way
-/// (4 `uzp` pairs) with no sign-handling overhead.
+/// This allows a single SIMD vector to carry both `+zeta` and `-zeta` for
+/// adjacent sub-pairs, enabling 2-way deinterleave (1 `uzp` pair) instead of
+/// 4-way (4 `uzp` pairs) with no sign-handling overhead.
 const ZETAS_BASEMUL_2WAY: [i16; 128] = {
     let mut out = [0i16; 128];
     let mut i = 0;

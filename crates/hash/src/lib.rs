@@ -1,7 +1,7 @@
 //! SIMD-accelerated Keccak/SHA-3 primitives for ML-KEM.
 //!
-//! Every hash primitive — scalar fixed-output (H, G, J), parallel XOF, and
-//! parallel PRF — shares a single lane-count-generic Keccak-f[1600]
+//! Every hash primitive -- scalar fixed-output (H, G, J), parallel XOF, and
+//! parallel PRF -- shares a single lane-count-generic Keccak-f[1600]
 //! permutation. The lane count is 1 for scalar, K for PRF, and K*K for
 //! XOF matrix sampling.
 

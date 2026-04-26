@@ -36,12 +36,12 @@ macro_rules! ntt_layer_packed {
 /// - When `len < lanes`: use [`ntt_layer_packed!`] to pack multiple butterfly
 ///   groups into full-width SIMD vectors.
 macro_rules! ntt_dispatch_layer {
-    // len=128: always exceeds max supported lanes (64) → regular.
+    // len=128: always exceeds max supported lanes (64) -> regular.
     ($dir:ident, $r:ident, $k:ident, 128, $lanes:tt) => {
         ntt_layer!($dir, $r, $k, 128, $lanes);
     };
 
-    // len=64: equals max lanes (64), never less → regular with sw = min(64, lanes).
+    // len=64: equals max lanes (64), never less -> regular with sw = min(64, lanes).
     ($dir:ident, $r:ident, $k:ident, 64, 8) => {
         ntt_layer!($dir, $r, $k, 64, 8);
     };
@@ -55,7 +55,7 @@ macro_rules! ntt_dispatch_layer {
         ntt_layer!($dir, $r, $k, 64, 64);
     };
 
-    // len=32: regular when lanes ≤ 32, packed when lanes > 32.
+    // len=32: regular when lanes <= 32, packed when lanes > 32.
     ($dir:ident, $r:ident, $k:ident, 32, 8) => {
         ntt_layer!($dir, $r, $k, 32, 8);
     };
@@ -69,7 +69,7 @@ macro_rules! ntt_dispatch_layer {
         ntt_layer_packed!($dir, $r, $k, 32, $lanes);
     };
 
-    // len=16: regular when lanes ≤ 16, packed when lanes > 16.
+    // len=16: regular when lanes <= 16, packed when lanes > 16.
     ($dir:ident, $r:ident, $k:ident, 16, 8) => {
         ntt_layer!($dir, $r, $k, 16, 8);
     };
@@ -88,12 +88,12 @@ macro_rules! ntt_dispatch_layer {
         ntt_layer_packed!($dir, $r, $k, 8, $lanes);
     };
 
-    // len=4: always less than min lanes (8) → packed.
+    // len=4: always less than min lanes (8) -> packed.
     ($dir:ident, $r:ident, $k:ident, 4, $lanes:tt) => {
         ntt_layer_packed!($dir, $r, $k, 4, $lanes);
     };
 
-    // len=2: always less than min lanes (8) → packed.
+    // len=2: always less than min lanes (8) -> packed.
     ($dir:ident, $r:ident, $k:ident, 2, $lanes:tt) => {
         ntt_layer_packed!($dir, $r, $k, 2, $lanes);
     };
@@ -125,10 +125,10 @@ pub fn forward_ntt(r: &mut [i16; N]) {
 /// each coefficient scaled by Montgomery factor `R = 2^{16}`.
 ///
 /// Uses lazy Barrett reduction: an initial [`poly_ops::reduce`] brings all
-/// coefficients into `[-q/2, q/2]`, then layers 1–4 (len 2..16) run without
-/// per-butterfly Barrett reduction because `|a + b|` stays within i16 range (≤
-/// 27 312). A second [`poly_ops::reduce`] after layer 4 restores the invariant
-/// for layers 5–7.
+/// coefficients into `[-q/2, q/2]`, then layers 1-4 (len 2..16) run without
+/// per-butterfly Barrett reduction because `|a + b|` stays within i16 range (<=
+/// 27312). A second [`poly_ops::reduce`] after layer 4 restores the invariant
+/// for layers 5-7.
 pub fn inverse_ntt(r: &mut [i16; N]) {
     const F: i16 = ntt::centred(
         ntt::pow_mod(2, 32, ntt::Q64) * ntt::pow_mod(128, ntt::Q64 - 2, ntt::Q64) % ntt::Q64,
@@ -136,13 +136,13 @@ pub fn inverse_ntt(r: &mut [i16; N]) {
     macro_rules! body {
         ($lanes:tt) => {{
             let mut k = 127usize;
-            // Reduce to [-q/2, q/2] so layers 1–4 cannot overflow i16.
+            // Reduce to [-q/2, q/2] so layers 1-4 cannot overflow i16.
             poly_ops::reduce(r);
             ntt_dispatch_layer!(inv_nored, r, k, 2, $lanes);
             ntt_dispatch_layer!(inv_nored, r, k, 4, $lanes);
             ntt_dispatch_layer!(inv_nored, r, k, 8, $lanes);
             ntt_dispatch_layer!(inv_nored, r, k, 16, $lanes);
-            // Reduce again: max value after 4 lazy layers ≈ 27 312.
+            // Reduce again: max value after 4 lazy layers ~ 27312.
             poly_ops::reduce(r);
             ntt_dispatch_layer!(inv_nored, r, k, 32, $lanes);
             ntt_dispatch_layer!(inv_nored, r, k, 64, $lanes);
