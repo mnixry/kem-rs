@@ -110,19 +110,23 @@
             inputsFrom = [ config.treefmt.build.devShell ];
             buildInputs =
               lib.singleton rust
-              ++ (with pkgs; [
-                llvmPackages.bolt
-                cargo-show-asm
-                cargo-flamegraph
-                cargo-edit
-                cargo-nextest
-                cargo-llvm-cov
-                cargo-criterion
-                gnuplot
-                pprof
-                perf
-                taplo
-              ]);
+              ++ (
+                with pkgs;
+                [
+                  cargo-show-asm
+                  cargo-flamegraph
+                  cargo-edit
+                  cargo-nextest
+                  cargo-llvm-cov
+                  cargo-criterion
+                  gnuplot
+                  pprof
+                ]
+                ++ lib.optionals stdenv.isLinux [
+                  llvmPackages.bolt
+                  perf
+                ]
+              );
           };
           checks = {
             clippy = craneLib.cargoClippy (
